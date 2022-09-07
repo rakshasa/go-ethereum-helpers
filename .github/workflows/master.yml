@@ -1,0 +1,33 @@
+name: Production Builds
+
+on:
+  push:
+    branches: [master]
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        ref: master
+
+    #
+    # Tests:
+    #
+
+    - name: Check for CRLF endings
+      uses: erclu/check-crlf@v1
+      with:
+        exclude: ./vendor/*
+
+    - name: Unit Tests
+      run: sudo -E ./build_tests.sh
