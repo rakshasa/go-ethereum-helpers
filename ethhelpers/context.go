@@ -7,25 +7,45 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-type rpcClientContextKey struct{}
+type clientContextKey struct{}
 
-// ContextWithRPCClient stores the RPC client in a new context.
-func ContextWithRPCClient(ctx context.Context, rpcClient *rpc.Client) context.Context {
-	return context.WithValue(ctx, rpcClientContextKey{}, rpcClient)
+type clientContext struct {
+	client    *ethclient.Client
+	rpcClient *rpc.Client
 }
 
-// ClientFromContext retrieves a new client created from the RPC client from the context, if any.
+// ContextWithClients stores in a new context both the RPC client and
+// the ethclient client created from it.
+//
+// The context will return clients for both ClientFromContext and RPCClientFromContext.
+func ContextWithClients(ctx context.Context, rpcClient *rpc.Client) context.Context {
+	c, ok := ctx.Value(clientContextKey{}).(clientContext)
+	if !ok {
+		c = clientContext{}
+	}
+
+	c.client = ethclient.NewClient(rpcClient)
+	c.rpcClient = rpcClient
+
+	return context.WithValue(ctx, clientContextKey{}, c)
+}
+
+// RPCClientFromContext retrieves an ethclient client from the context, if any.
 func ClientFromContext(ctx context.Context) (*ethclient.Client, bool) {
-	c, ok := ctx.Value(rpcClientContextKey{}).(*rpc.Client)
+	c, ok := ctx.Value(clientContextKey{}).(clientContext)
 	if !ok {
 		return nil, false
 	}
 
-	return ethclient.NewClient(c), true
+	return c.client, true
 }
 
 // RPCClientFromContext retrieves an RPC client from the context, if any.
-func RPCClientFromContext(ctx context.Context) (c *rpc.Client, ok bool) {
-	c, ok = ctx.Value(rpcClientContextKey{}).(*rpc.Client)
-	return
+func RPCClientFromContext(ctx context.Context) (*rpc.Client, bool) {
+	c, ok := ctx.Value(clientContextKey{}).(clientContext)
+	if !ok {
+		return nil, false
+	}
+
+	return c.rpcClient, true
 }

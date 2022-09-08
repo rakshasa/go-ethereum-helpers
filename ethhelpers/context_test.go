@@ -24,7 +24,7 @@ func TestClientFromContext(t *testing.T) {
 				assert.False(ok, name)
 			},
 		}, {
-			"rpc client : empty context",
+			"rpc : empty context",
 			func(name string) {
 				c, ok := RPCClientFromContext(context.Background())
 				assert.Nil(c, "empty context")
@@ -34,15 +34,15 @@ func TestClientFromContext(t *testing.T) {
 			"ethclient : with client",
 			func(name string) {
 				stored := &rpc.Client{}
-				c, ok := ClientFromContext(ContextWithRPCClient(context.Background(), stored))
+				c, ok := ClientFromContext(ContextWithClients(context.Background(), stored))
 				assert.NotNil(c, name)
 				assert.True(ok, name)
 			},
 		}, {
-			"rpc client : with client",
+			"rpc : with client",
 			func(name string) {
 				stored := &rpc.Client{}
-				c, ok := RPCClientFromContext(ContextWithRPCClient(context.Background(), stored))
+				c, ok := RPCClientFromContext(ContextWithClients(context.Background(), stored))
 				assert.Same(stored, c, name)
 				assert.True(ok, name)
 			},
