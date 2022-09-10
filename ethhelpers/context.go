@@ -8,24 +8,14 @@ import (
 )
 
 type clientContextKey struct{}
-
-type clientContext struct {
-	client    *ethclient.Client
-	rpcClient *rpc.Client
-}
+type configContextKey struct{}
+type rpcClientContextKey struct{}
 
 // ContextWithClient creates a new context which contains an ethclient client.
 //
 // The context will return the client when calling ClientFromContext.
 func ContextWithClient(ctx context.Context, client *ethclient.Client) context.Context {
-	c, ok := ctx.Value(clientContextKey{}).(clientContext)
-	if !ok {
-		c = clientContext{}
-	}
-
-	c.client = client
-
-	return context.WithValue(ctx, clientContextKey{}, c)
+	return context.WithValue(ctx, clientContextKey{}, client)
 }
 
 // ContextWithClients creates a new context which contains both the
@@ -34,47 +24,39 @@ func ContextWithClient(ctx context.Context, client *ethclient.Client) context.Co
 // The context will return the clients when calling ClientFromContext and
 // RPCClientFromContext.
 func ContextWithClients(ctx context.Context, rpcClient *rpc.Client) context.Context {
-	c, ok := ctx.Value(clientContextKey{}).(clientContext)
-	if !ok {
-		c = clientContext{}
-	}
+	ctx = context.WithValue(ctx, clientContextKey{}, ethclient.NewClient(rpcClient))
+	ctx = context.WithValue(ctx, rpcClientContextKey{}, rpcClient)
+	return ctx
+}
 
-	c.client = ethclient.NewClient(rpcClient)
-	c.rpcClient = rpcClient
-
-	return context.WithValue(ctx, clientContextKey{}, c)
+// ContextWithConfig creates a new context which contains an ethhelpers config.
+//
+// The context will return the config when calling ConfigFromContext.
+func ContextWithConfig(ctx context.Context, config Config) context.Context {
+	return context.WithValue(ctx, configContextKey{}, config)
 }
 
 // ContextWithRPCClient creates a new context which contains an RPC client.
 //
 // The context will return the client when calling RPCClientFromContext.
 func ContextWithRPCClient(ctx context.Context, rpcClient *rpc.Client) context.Context {
-	c, ok := ctx.Value(clientContextKey{}).(clientContext)
-	if !ok {
-		c = clientContext{}
-	}
-
-	c.rpcClient = rpcClient
-
-	return context.WithValue(ctx, clientContextKey{}, c)
+	return context.WithValue(ctx, rpcClientContextKey{}, rpcClient)
 }
 
-// RPCClientFromContext retrieves an ethclient client from the context, if any.
+// ClientFromContext retrieves an ethclient client from the context, if any.
 func ClientFromContext(ctx context.Context) (*ethclient.Client, bool) {
-	c, ok := ctx.Value(clientContextKey{}).(clientContext)
-	if !ok || c.client == nil {
-		return nil, false
-	}
+	c, ok := ctx.Value(clientContextKey{}).(*ethclient.Client)
+	return c, ok
+}
 
-	return c.client, true
+// ConfigFromContext retrieves an ethhelpers config from the context, if any.
+func ConfigFromContext(ctx context.Context) (Config, bool) {
+	c, ok := ctx.Value(configContextKey{}).(Config)
+	return c, ok
 }
 
 // RPCClientFromContext retrieves an RPC client from the context, if any.
 func RPCClientFromContext(ctx context.Context) (*rpc.Client, bool) {
-	c, ok := ctx.Value(clientContextKey{}).(clientContext)
-	if !ok || c.rpcClient == nil {
-		return nil, false
-	}
-
-	return c.rpcClient, true
+	c, ok := ctx.Value(rpcClientContextKey{}).(*rpc.Client)
+	return c, ok
 }

@@ -3,6 +3,7 @@ package ethhelpers
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -25,6 +26,13 @@ func TestFromContext(t *testing.T) {
 				assert.False(ok, name)
 			},
 		}, {
+			"config : empty context",
+			func(name string) {
+				c, ok := RPCClientFromContext(context.Background())
+				assert.Nil(c, name)
+				assert.False(ok, name)
+			},
+		}, {
 			"rpc : empty context",
 			func(name string) {
 				c, ok := RPCClientFromContext(context.Background())
@@ -32,99 +40,91 @@ func TestFromContext(t *testing.T) {
 				assert.False(ok, name)
 			},
 		}, {
-			"ethclient : with clients",
+			"with clients",
 			func(name string) {
 				stored := &rpc.Client{}
-				c, ok := ClientFromContext(ContextWithClients(context.Background(), stored))
-				assert.NotNil(c, name)
+				ctx := ContextWithClients(context.Background(), stored)
+
+				e, ok := ClientFromContext(ctx)
+				assert.NotNil(e, name)
+				assert.True(ok, name)
+				c, ok := ConfigFromContext(ctx)
+				assert.Equal(Config{}, c, name)
+				assert.False(ok, name)
+				r, ok := RPCClientFromContext(ctx)
+				assert.Same(stored, r, name)
 				assert.True(ok, name)
 			},
 		}, {
-			"rpc : with clients",
-			func(name string) {
-				stored := &rpc.Client{}
-				c, ok := RPCClientFromContext(ContextWithClients(context.Background(), stored))
-				assert.Same(stored, c, name)
-				assert.True(ok, name)
-			},
-		}, {
-			"ethclient : with ethclient client",
+			"with ethclient client",
 			func(name string) {
 				stored := &ethclient.Client{}
-				c, ok := ClientFromContext(ContextWithClient(context.Background(), stored))
-				assert.Same(stored, c, name)
+				ctx := ContextWithClient(context.Background(), stored)
+
+				e, ok := ClientFromContext(ctx)
+				assert.Same(stored, e, name)
 				assert.True(ok, name)
-			},
-		}, {
-			"rpc : with ethclient client",
-			func(name string) {
-				stored := &ethclient.Client{}
-				c, ok := RPCClientFromContext(ContextWithClient(context.Background(), stored))
-				assert.Nil(c, name)
+				c, ok := ConfigFromContext(ctx)
+				assert.Equal(Config{}, c, name)
+				assert.False(ok, name)
+				r, ok := RPCClientFromContext(ctx)
+				assert.Nil(r, name)
 				assert.False(ok, name)
 			},
 		}, {
-			"ethclient : with rpc client",
+			"with config",
+			func(name string) {
+				stored := Config{Endpoint: "test"}
+				ctx := ContextWithConfig(context.Background(), stored)
+
+				e, ok := ClientFromContext(ctx)
+				assert.Nil(e, name)
+				assert.False(ok, name)
+				c, ok := ConfigFromContext(ctx)
+				assert.Equal(stored, c, name)
+				assert.True(ok, name)
+				r, ok := RPCClientFromContext(ctx)
+				assert.Nil(r, name)
+				assert.False(ok, name)
+			},
+		}, {
+			"with rpc client",
 			func(name string) {
 				stored := &rpc.Client{}
-				c, ok := ClientFromContext(ContextWithRPCClient(context.Background(), stored))
-				assert.Nil(c, name)
+				ctx := ContextWithRPCClient(context.Background(), stored)
+
+				e, ok := ClientFromContext(ctx)
+				assert.Nil(e, name)
 				assert.False(ok, name)
-			},
-		}, {
-			"rpc : with rpc client",
-			func(name string) {
-				stored := &rpc.Client{}
-				c, ok := RPCClientFromContext(ContextWithRPCClient(context.Background(), stored))
-				assert.Same(stored, c, name)
+				c, ok := ConfigFromContext(ctx)
+				assert.Equal(Config{}, c, name)
+				assert.False(ok, name)
+				r, ok := RPCClientFromContext(ctx)
+				assert.Same(stored, r, name)
 				assert.True(ok, name)
 			},
 		}, {
-			"ethclient and rpc : with clients",
+			"with config",
 			func(name string) {
-				storedRpc := &rpc.Client{}
-				storedEthclient := &ethclient.Client{}
+				storedConfig := Config{
+					Endpoint: "test",
+					ChainId:  big.NewInt(5),
+				}
+				storedRpcClient := &rpc.Client{}
 
 				ctx := context.Background()
-				ctx = ContextWithClient(ctx, storedEthclient)
-				ctx = ContextWithRPCClient(ctx, storedRpc)
+				ctx = ContextWithConfig(ctx, storedConfig)
+				ctx = ContextWithClients(ctx, storedRpcClient)
 
-				ethClient, ok := ClientFromContext(ctx)
-				assert.Same(storedEthclient, ethClient, name)
+				e, ok := ClientFromContext(ctx)
+				assert.NotNil(e, name)
 				assert.True(ok, name)
-
-				rpcClient, ok := RPCClientFromContext(ctx)
-				assert.Same(storedRpc, rpcClient, name)
+				c, ok := ConfigFromContext(ctx)
+				assert.Equal(storedConfig, c, name)
 				assert.True(ok, name)
-			},
-		}, {
-			"ethclient and rpc : with clients and overwrite",
-			func(name string) {
-				storedRpc := &rpc.Client{}
-				storedEthclient := &ethclient.Client{}
-
-				ctx := context.Background()
-				ctx = ContextWithClient(ctx, storedEthclient)
-				ctx = ContextWithRPCClient(ctx, storedRpc)
-				ctx = ContextWithClient(ctx, nil)
-
-				ethClient, ok := ClientFromContext(ctx)
-				assert.Nil(ethClient, name)
-				assert.False(ok, name)
-
-				rpcClient, ok := RPCClientFromContext(ctx)
-				assert.Same(storedRpc, rpcClient, name)
+				r, ok := RPCClientFromContext(ctx)
+				assert.Same(storedRpcClient, r, name)
 				assert.True(ok, name)
-
-				ctx = ContextWithRPCClient(ctx, nil)
-
-				ethClient, ok = ClientFromContext(ctx)
-				assert.Nil(ethClient, name)
-				assert.False(ok, name)
-
-				rpcClient, ok = RPCClientFromContext(ctx)
-				assert.Nil(rpcClient, name)
-				assert.False(ok, name)
 			},
 		},
 	}
