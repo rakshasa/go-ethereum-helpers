@@ -9,7 +9,7 @@ git_revision="$(git -C "${project_root}" rev-parse --short HEAD)"; readonly git_
 readonly build_image="go-ethereum-helpers--update-vendor-${git_revision}"
 
 readonly dependencies=(
-  "github.com/ethereum/go-ethereum@v1.10.21"
+  "github.com/ethereum/go-ethereum@v1.10.25"
 )
 
 build_dir=$(mktemp -d); readonly build_dir
