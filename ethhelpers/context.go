@@ -11,10 +11,15 @@ type clientContextKey struct{}
 type configContextKey struct{}
 type rpcClientContextKey struct{}
 
-// ContextWithClient creates a new context which contains an ethclient client.
+// ContextWithClient creates a new context which contains an ethhelpers.Client.
 //
-// The context will return the client when calling ClientFromContext.
-func ContextWithClient(ctx context.Context, client *ethclient.Client) context.Context {
+// The context will return the client when calling ClientFromContext
+// and other compatible methods.
+//
+// Note that there can only be one client type plust the RPC client
+// stored in the context, other client interface variants are stored
+// using the same context key.
+func ContextWithClient(ctx context.Context, client Client) context.Context {
 	return context.WithValue(ctx, clientContextKey{}, client)
 }
 
@@ -23,7 +28,7 @@ func ContextWithClient(ctx context.Context, client *ethclient.Client) context.Co
 //
 // The context will return the clients when calling ClientFromContext and
 // RPCClientFromContext.
-func ContextWithClients(ctx context.Context, rpcClient *rpc.Client) context.Context {
+func ContextWithClientsFromRPCClient(ctx context.Context, rpcClient *rpc.Client) context.Context {
 	ctx = context.WithValue(ctx, clientContextKey{}, ethclient.NewClient(rpcClient))
 	ctx = context.WithValue(ctx, rpcClientContextKey{}, rpcClient)
 	return ctx
@@ -36,6 +41,15 @@ func ContextWithConfig(ctx context.Context, config Config) context.Context {
 	return context.WithValue(ctx, configContextKey{}, config)
 }
 
+// ContextWithLimitedClient creates a new context which contains an
+// ethhelpers.LimitedClient.
+//
+// The context will return the client when calling LimitedClientFromContext
+// and other compatible methods.
+func ContextWithLimitedClient(ctx context.Context, client LimitedClient) context.Context {
+	return context.WithValue(ctx, clientContextKey{}, client)
+}
+
 // ContextWithRPCClient creates a new context which contains an RPC client.
 //
 // The context will return the client when calling RPCClientFromContext.
@@ -43,19 +57,27 @@ func ContextWithRPCClient(ctx context.Context, rpcClient *rpc.Client) context.Co
 	return context.WithValue(ctx, rpcClientContextKey{}, rpcClient)
 }
 
-// ClientFromContext retrieves an ethclient client from the context, if any.
-func ClientFromContext(ctx context.Context) (*ethclient.Client, bool) {
-	c, ok := ctx.Value(clientContextKey{}).(*ethclient.Client)
+// ClientFromContext retrieves an interface implementing
+// ethhelpers.Client from the context, if any.
+func ClientFromContext(ctx context.Context) (Client, bool) {
+	c, ok := ctx.Value(clientContextKey{}).(Client)
 	return c, ok
 }
 
-// ConfigFromContext retrieves an ethhelpers config from the context, if any.
+// ConfigFromContext retrieves an ethhelpers.Config from the context, if any.
 func ConfigFromContext(ctx context.Context) (Config, bool) {
 	c, ok := ctx.Value(configContextKey{}).(Config)
 	return c, ok
 }
 
-// RPCClientFromContext retrieves an RPC client from the context, if any.
+// LimitedClientFromContext retrieves an interface implementing
+// ethhelpers.LimitedClient from the context, if any.
+func LimitedClientFromContext(ctx context.Context) (LimitedClient, bool) {
+	c, ok := ctx.Value(clientContextKey{}).(LimitedClient)
+	return c, ok
+}
+
+// RPCClientFromContext retrieves an *rpc.Client from the context, if any.
 func RPCClientFromContext(ctx context.Context) (*rpc.Client, bool) {
 	c, ok := ctx.Value(rpcClientContextKey{}).(*rpc.Client)
 	return c, ok

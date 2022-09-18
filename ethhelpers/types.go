@@ -1,31 +1,70 @@
 package ethhelpers
 
 import (
+	"context"
 	"math/big"
+
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
-func BigIntAsInt64(v *big.Int) (int64, bool) {
-	if v == nil || !v.IsInt64() {
-		return 0, false
-	}
+// TODO: Consider a better name for this as it is based on SimulatedBackend.
 
-	return v.Int64(), true
+type LimitedClient interface {
+	ethereum.ChainReader
+	ethereum.ChainStateReader
+	// ethereum.ChainSyncReader
+	ethereum.ContractCaller
+	ethereum.GasEstimator
+	ethereum.GasPricer
+	ethereum.LogFilterer
+	ethereum.PendingContractCaller
+	// ethereum.PendingStateReader
+	ethereum.TransactionReader
+	ethereum.TransactionSender
+
+	// Methods not included in any of the go-ethereum interfaces:
+
+	// BlockNumber(ctx context.Context) (uint64, error)
+	// CallContractAtHash(ctx context.Context, msg ethereum.CallMsg, blockHash common.Hash) ([]byte, error)
+	// ChainID(ctx context.Context) (*big.Int, error)
+	// Close()
+	// FeeHistory(ctx context.Context, blockCount uint64, lastBlock *big.Int, rewardPercentiles []float64) (*ethereum.FeeHistory, error)
+	// NetworkID(ctx context.Context) (*big.Int, error)
+	// PeerCount(ctx context.Context) (uint64, error)
+	SendTransaction(ctx context.Context, tx *types.Transaction) error
+	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error)
+	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
+	TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error)
+	TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*types.Transaction, error)
 }
 
-func BigIntAsInt64OrZero(v *big.Int) int64 {
-	id, _ := BigIntAsInt64(v)
-	return id
-}
+type Client interface {
+	ethereum.ChainReader
+	ethereum.ChainStateReader
+	ethereum.ChainSyncReader
+	ethereum.ContractCaller
+	ethereum.GasEstimator
+	ethereum.GasPricer
+	ethereum.LogFilterer
+	ethereum.PendingContractCaller
+	ethereum.PendingStateReader
+	ethereum.TransactionReader
+	ethereum.TransactionSender
 
-func BigIntAsUint64(v *big.Int) (uint64, bool) {
-	if v == nil || !v.IsUint64() {
-		return 0, false
-	}
+	// Methods not included in any of the go-ethereum interfaces:
 
-	return v.Uint64(), true
-}
-
-func BigIntAsUint64OrZero(v *big.Int) uint64 {
-	id, _ := BigIntAsUint64(v)
-	return id
+	BlockNumber(ctx context.Context) (uint64, error)
+	CallContractAtHash(ctx context.Context, msg ethereum.CallMsg, blockHash common.Hash) ([]byte, error)
+	ChainID(ctx context.Context) (*big.Int, error)
+	Close()
+	// FeeHistory(ctx context.Context, blockCount uint64, lastBlock *big.Int, rewardPercentiles []float64) (*ethereum.FeeHistory, error)
+	NetworkID(ctx context.Context) (*big.Int, error)
+	PeerCount(ctx context.Context) (uint64, error)
+	SendTransaction(ctx context.Context, tx *types.Transaction) error
+	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error)
+	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
+	TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error)
+	TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*types.Transaction, error)
 }

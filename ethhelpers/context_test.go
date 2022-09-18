@@ -6,12 +6,13 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFromContext(t *testing.T) {
+func TestClientFromContext(t *testing.T) {
 	assert := assert.New(t)
 
 	tests := []struct {
@@ -19,31 +20,31 @@ func TestFromContext(t *testing.T) {
 		fn   func(string)
 	}{
 		{
-			"ethclient : empty context",
+			"client : empty context",
 			func(name string) {
 				c, ok := ClientFromContext(context.Background())
 				assert.Nil(c, name)
 				assert.False(ok, name)
 			},
 		}, {
-			"config : empty context",
+			"limited client : empty context",
+			func(name string) {
+				c, ok := LimitedClientFromContext(context.Background())
+				assert.Nil(c, name)
+				assert.False(ok, name)
+			},
+		}, {
+			"rpc client : empty context",
 			func(name string) {
 				c, ok := RPCClientFromContext(context.Background())
 				assert.Nil(c, name)
 				assert.False(ok, name)
 			},
 		}, {
-			"rpc : empty context",
-			func(name string) {
-				c, ok := RPCClientFromContext(context.Background())
-				assert.Nil(c, name)
-				assert.False(ok, name)
-			},
-		}, {
-			"with clients",
+			"with clients from rpc client",
 			func(name string) {
 				stored := &rpc.Client{}
-				ctx := ContextWithClients(context.Background(), stored)
+				ctx := ContextWithClientsFromRPCClient(context.Background(), stored)
 
 				e, ok := ClientFromContext(ctx)
 				assert.NotNil(e, name)
@@ -51,6 +52,9 @@ func TestFromContext(t *testing.T) {
 				c, ok := ConfigFromContext(ctx)
 				assert.Equal(Config{}, c, name)
 				assert.False(ok, name)
+				l, ok := LimitedClientFromContext(ctx)
+				assert.NotNil(l, name)
+				assert.True(ok, name)
 				r, ok := RPCClientFromContext(ctx)
 				assert.Same(stored, r, name)
 				assert.True(ok, name)
@@ -67,8 +71,71 @@ func TestFromContext(t *testing.T) {
 				c, ok := ConfigFromContext(ctx)
 				assert.Equal(Config{}, c, name)
 				assert.False(ok, name)
+				l, ok := LimitedClientFromContext(ctx)
+				assert.NotNil(l, name)
+				assert.True(ok, name)
 				r, ok := RPCClientFromContext(ctx)
 				assert.Nil(r, name)
+				assert.False(ok, name)
+			},
+		}, {
+			"with rpc client",
+			func(name string) {
+				stored := &rpc.Client{}
+				ctx := ContextWithRPCClient(context.Background(), stored)
+
+				e, ok := ClientFromContext(ctx)
+				assert.Nil(e, name)
+				assert.False(ok, name)
+				c, ok := ConfigFromContext(ctx)
+				assert.Equal(Config{}, c, name)
+				assert.False(ok, name)
+				l, ok := LimitedClientFromContext(ctx)
+				assert.Nil(l, name)
+				assert.False(ok, name)
+				r, ok := RPCClientFromContext(ctx)
+				assert.Same(stored, r, name)
+				assert.True(ok, name)
+			},
+		}, {
+			"with simulated backend client",
+			func(name string) {
+				stored := &backends.SimulatedBackend{}
+				ctx := ContextWithLimitedClient(context.Background(), stored)
+
+				e, ok := ClientFromContext(ctx)
+				assert.Nil(e, name)
+				assert.False(ok, name)
+				c, ok := ConfigFromContext(ctx)
+				assert.Equal(Config{}, c, name)
+				assert.False(ok, name)
+				l, ok := LimitedClientFromContext(ctx)
+				assert.NotNil(l, name)
+				assert.True(ok, name)
+				r, ok := RPCClientFromContext(ctx)
+				assert.Nil(r, name)
+				assert.False(ok, name)
+			},
+		},
+	}
+
+	for idx, test := range tests {
+		test.fn(fmt.Sprintf("%d: %s", idx, test.name))
+	}
+}
+
+func TestConfigFromContext(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		name string
+		fn   func(string)
+	}{
+		{
+			"empty context",
+			func(name string) {
+				c, ok := RPCClientFromContext(context.Background())
+				assert.Nil(c, name)
 				assert.False(ok, name)
 			},
 		}, {
@@ -88,23 +155,7 @@ func TestFromContext(t *testing.T) {
 				assert.False(ok, name)
 			},
 		}, {
-			"with rpc client",
-			func(name string) {
-				stored := &rpc.Client{}
-				ctx := ContextWithRPCClient(context.Background(), stored)
-
-				e, ok := ClientFromContext(ctx)
-				assert.Nil(e, name)
-				assert.False(ok, name)
-				c, ok := ConfigFromContext(ctx)
-				assert.Equal(Config{}, c, name)
-				assert.False(ok, name)
-				r, ok := RPCClientFromContext(ctx)
-				assert.Same(stored, r, name)
-				assert.True(ok, name)
-			},
-		}, {
-			"with config",
+			"with config and clients",
 			func(name string) {
 				storedConfig := Config{
 					Endpoint: "test",
@@ -114,7 +165,7 @@ func TestFromContext(t *testing.T) {
 
 				ctx := context.Background()
 				ctx = ContextWithConfig(ctx, storedConfig)
-				ctx = ContextWithClients(ctx, storedRpcClient)
+				ctx = ContextWithClientsFromRPCClient(ctx, storedRpcClient)
 
 				e, ok := ClientFromContext(ctx)
 				assert.NotNil(e, name)
