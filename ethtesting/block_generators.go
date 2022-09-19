@@ -26,7 +26,7 @@ type SimpleBlockGenerator struct {
 	// used.
 	//
 	// Results in an error if set to a non-zero value that is less
-	// than the lasat block number with a transaction.
+	// than the last block number with a transaction.
 	ExpectedHeight int
 
 	// Offset time of the block in seconds.

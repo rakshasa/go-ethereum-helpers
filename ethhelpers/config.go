@@ -5,6 +5,7 @@ import (
 )
 
 type Config struct {
-	Endpoint string
-	ChainId  *big.Int
+	Endpoint  string
+	ChainId   *big.Int
+	Contracts ContractContainer
 }

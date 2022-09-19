@@ -7,8 +7,22 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-type clientContextKey struct{}
 type configContextKey struct{}
+
+// ContextWithConfig creates a new context which contains an ethhelpers config.
+//
+// The context will return the config when calling ConfigFromContext.
+func ContextWithConfig(ctx context.Context, config Config) context.Context {
+	return context.WithValue(ctx, configContextKey{}, config)
+}
+
+// ConfigFromContext retrieves an ethhelpers.Config from the context, if any.
+func ConfigFromContext(ctx context.Context) (Config, bool) {
+	c, ok := ctx.Value(configContextKey{}).(Config)
+	return c, ok
+}
+
+type clientContextKey struct{}
 type rpcClientContextKey struct{}
 
 // ContextWithClient creates a new context which contains an ethhelpers.Client.
@@ -34,13 +48,6 @@ func ContextWithClientsFromRPCClient(ctx context.Context, rpcClient *rpc.Client)
 	return ctx
 }
 
-// ContextWithConfig creates a new context which contains an ethhelpers config.
-//
-// The context will return the config when calling ConfigFromContext.
-func ContextWithConfig(ctx context.Context, config Config) context.Context {
-	return context.WithValue(ctx, configContextKey{}, config)
-}
-
 // ContextWithLimitedClient creates a new context which contains an
 // ethhelpers.LimitedClient.
 //
@@ -61,12 +68,6 @@ func ContextWithRPCClient(ctx context.Context, rpcClient *rpc.Client) context.Co
 // ethhelpers.Client from the context, if any.
 func ClientFromContext(ctx context.Context) (Client, bool) {
 	c, ok := ctx.Value(clientContextKey{}).(Client)
-	return c, ok
-}
-
-// ConfigFromContext retrieves an ethhelpers.Config from the context, if any.
-func ConfigFromContext(ctx context.Context) (Config, bool) {
-	c, ok := ctx.Value(configContextKey{}).(Config)
 	return c, ok
 }
 
