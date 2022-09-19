@@ -12,6 +12,15 @@ func BigIntAsInt64(v *big.Int) (int64, bool) {
 	return v.Int64(), true
 }
 
+func BigIntAsInt64OrDefaultValue(v *big.Int, defaultValue int64) int64 {
+	id, ok := BigIntAsInt64(v)
+	if !ok {
+		return defaultValue
+	}
+
+	return id
+}
+
 func BigIntAsInt64OrZero(v *big.Int) int64 {
 	id, _ := BigIntAsInt64(v)
 	return id
@@ -23,6 +32,15 @@ func BigIntAsUint64(v *big.Int) (uint64, bool) {
 	}
 
 	return v.Uint64(), true
+}
+
+func BigIntAsUint64OrDefaultValue(v *big.Int, defaultValue uint64) uint64 {
+	id, ok := BigIntAsUint64(v)
+	if !ok {
+		return defaultValue
+	}
+
+	return id
 }
 
 func BigIntAsUint64OrZero(v *big.Int) uint64 {
