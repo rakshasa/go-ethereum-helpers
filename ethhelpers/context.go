@@ -22,6 +22,23 @@ func ConfigFromContext(ctx context.Context) (Config, bool) {
 	return c, ok
 }
 
+// ContractFromConfigInContext retrieves a Contract from the
+// ContractContainer in the Config stored in the context, if any.
+func ContractFromConfigInContext(ctx context.Context, key interface{}) (Contract, bool) {
+	config, ok := ctx.Value(configContextKey{}).(Config)
+	if !ok {
+		return nil, false
+	}
+
+	c, ok := config.Contracts.Get(key)
+	return c, ok
+}
+
+func ContractOrNilFromConfigInContext(ctx context.Context, key interface{}) Contract {
+	c, _ := ContractFromConfigInContext(ctx, key)
+	return c
+}
+
 type clientContextKey struct{}
 type rpcClientContextKey struct{}
 

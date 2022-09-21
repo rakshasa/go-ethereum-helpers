@@ -177,6 +177,30 @@ func TestConfigFromContext(t *testing.T) {
 				assert.Same(storedRpcClient, r, name)
 				assert.True(ok, name)
 			},
+		}, {
+			"with contract",
+			func(name string) {
+				// TODO: Add tests with empty Contracts.
+				config := Config{Contracts: NewContractContainer()}
+				ctx := ContextWithConfig(context.Background(), config)
+
+				c, ok := ContractFromConfigInContext(ctx, 1)
+				assert.Nil(c, name)
+				assert.False(ok, name)
+
+				c = ContractOrNilFromConfigInContext(ctx, 1)
+				assert.Nil(c, name)
+
+				stored := &testContract{}
+				config.Contracts.Put(1, stored)
+
+				c, ok = ContractFromConfigInContext(ctx, 1)
+				assert.Equal(stored, c, name)
+				assert.True(ok, name)
+
+				c = ContractOrNilFromConfigInContext(ctx, 1)
+				assert.Equal(stored, c, name)
+			},
 		},
 	}
 

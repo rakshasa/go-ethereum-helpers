@@ -12,7 +12,7 @@ import (
 type testContract struct {
 }
 
-func (c *testContract) ChainId() *big.Int {
+func (c *testContract) ChainID() *big.Int {
 	return big.NewInt(1)
 }
 
@@ -32,6 +32,20 @@ func TestContractContainer(t *testing.T) {
 	}{
 		{
 			"empty",
+			func(name string) {
+				c := ContractContainer{}
+
+				c.Delete(key1{})
+
+				contract, ok := c.Get(key1{})
+				assert.Nil(contract, name)
+				assert.False(ok, name)
+
+				ok = c.Put(key1{}, &testContract{})
+				assert.False(ok, name)
+			},
+		}, {
+			"new",
 			func(name string) {
 				c := NewContractContainer()
 

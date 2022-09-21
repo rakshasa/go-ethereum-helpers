@@ -86,3 +86,9 @@ func (c *ContractContainer) Put(key interface{}, value Contract) bool {
 	c.m.Store(key, value)
 	return false
 }
+
+func (c *ContractContainer) MustPut(key interface{}, value Contract) {
+	if ok := c.Put(key, value); !ok {
+		panic("unable to put value in ContractContainer")
+	}
+}
