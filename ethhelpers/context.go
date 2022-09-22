@@ -34,6 +34,20 @@ func ContractFromConfigInContext(ctx context.Context, key interface{}) (Contract
 	return c, ok
 }
 
+// Same as ContractFromConfigInContext, except it returns a nil object
+// if not present.
+//
+// ```
+// contractHelper, ok := ethhelpers.ContractOrNilFromConfigInContext(ctx, MyContractKey{}).(*MyContract)
+// if !ok {
+//   return fmt.Errorf("missing my contract in context")
+// }
+//
+// contract, err := contractHelper.ContractFromContext(ctx)
+// if err != nil {
+//   return fmt.Errorf("failed to create my contract: %v", err)
+// }
+// ```
 func ContractOrNilFromConfigInContext(ctx context.Context, key interface{}) Contract {
 	c, _ := ContractFromConfigInContext(ctx, key)
 	return c

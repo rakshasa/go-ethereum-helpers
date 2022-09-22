@@ -19,6 +19,7 @@ type Contract interface {
 	// TODO: Add ContractFromContext variant?
 	//
 	// Contract(backend bind.ContractBackend) (*MyContract, error)
+	// ContractFromContext(ctx context.Context) (*MyContract, error)
 	// ContractCaller(caller bind.ContractCaller) (*MyContractCaller, error)
 	// ContractTransactor(transactor bind.ContractTransactor) (*MyContractTransactor, error)
 	// ContractFilterer(filterer bind.ContractFilterer) (*MyContractFilterer, error)
