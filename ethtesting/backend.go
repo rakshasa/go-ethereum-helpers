@@ -45,8 +45,8 @@ func GenerateTestChain(genesis *core.Genesis, blockGenerator BlockGenerator) ([]
 	// return append([]*types.Block{genesis.ToBlock()}, blocks...)
 }
 
-func NewTestBackend(genesis *core.Genesis, blocks []*types.Block) (*node.Node, error) {
-	backend, err := node.New(&node.Config{})
+func NewTestBackend(nodeConfig node.Config, genesis *core.Genesis, blocks []*types.Block) (*node.Node, error) {
+	backend, err := node.New(&nodeConfig)
 	if err != nil {
 		return nil, fmt.Errorf("can't create new node: %v", err)
 	}

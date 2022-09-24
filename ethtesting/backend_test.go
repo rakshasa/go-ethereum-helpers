@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +24,6 @@ var (
 
 var genesis = &core.Genesis{
 	Config: params.AllEthashProtocolChanges,
-	//Config: params.TestChainConfig
 
 	Alloc: core.GenesisAlloc{
 		testAddr: {
@@ -60,7 +60,11 @@ func newTestBackend(t *testing.T) (*node.Node, []*types.Block) {
 		t.Fatalf("could not generate test chain")
 	}
 
-	backend, err := NewTestBackend(genesis, blocks)
+	backend, err := NewTestBackend(
+		node.Config{},
+		genesis,
+		blocks,
+	)
 	if !assert.NoError(t, err) {
 		t.Fatalf("could not generate test backend")
 	}
@@ -69,6 +73,9 @@ func newTestBackend(t *testing.T) (*node.Node, []*types.Block) {
 }
 
 func TestGenerateBackend(t *testing.T) {
+	commit := PendingLogHandlerForTesting(t, log.Root())
+	defer commit()
+
 	backend, _ := newTestBackend(t)
 	defer backend.Close()
 
