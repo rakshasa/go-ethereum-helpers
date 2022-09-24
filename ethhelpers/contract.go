@@ -16,13 +16,12 @@ type Contract interface {
 	//
 	// Below are examples of the recommended function definitions:
 	//
-	// TODO: Add ContractFromContext variant?
+	//   Contract(ctx context.Context, backend bind.ContractBackend) (*MyContract, error)
+	//   ContractCaller(ctx context.Context, caller bind.ContractCaller) (*MyContractCaller, error)
+	//   ContractTransactor(ctx context.Context, transactor bind.ContractTransactor) (*MyContractTransactor, error)
+	//   ContractFilterer(ctx context.Context, filterer bind.ContractFilterer) (*MyContractFilterer, error)
 	//
-	// Contract(backend bind.ContractBackend) (*MyContract, error)
-	// ContractFromContext(ctx context.Context) (*MyContract, error)
-	// ContractCaller(caller bind.ContractCaller) (*MyContractCaller, error)
-	// ContractTransactor(transactor bind.ContractTransactor) (*MyContractTransactor, error)
-	// ContractFilterer(filterer bind.ContractFilterer) (*MyContractFilterer, error)
+	//   ContractFromContext(ctx context.Context) (*MyContract, error)
 }
 
 // ContractContainer uses a sync.Map to hold Contract instances.
@@ -36,12 +35,14 @@ type Contract interface {
 //
 // For variants of generic contracts it is possible to use a struct
 // type with a member variable to differentiate contract instances.
-//
-// TODO: If part of Config then Config should have a helper method
-// MustAddContract that checks chain id.
 type ContractContainer struct {
 	m *sync.Map
 }
+
+// TODO: If part of Config then Config should have a helper method
+// MustAddContract that checks chain id.
+//
+// TODO: Add chain id to the container and verify that it matches.
 
 func NewContractContainer() ContractContainer {
 	return ContractContainer{
@@ -73,8 +74,6 @@ func (c *ContractContainer) GetOrNil(key interface{}) Contract {
 	value, _ := c.Get(key)
 	return value
 }
-
-// TODO: Add chain id to the container and verify it matches.
 
 func (c *ContractContainer) Put(key interface{}, value Contract) bool {
 	if c.m == nil {

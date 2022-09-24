@@ -37,17 +37,16 @@ func ContractFromConfigInContext(ctx context.Context, key interface{}) (Contract
 // Same as ContractFromConfigInContext, except it returns a nil object
 // if not present.
 //
-// ```
-// contractHelper, ok := ethhelpers.ContractOrNilFromConfigInContext(ctx, MyContractKey{}).(*MyContract)
-// if !ok {
-//   return fmt.Errorf("missing my contract in context")
-// }
+//   contractHelper, ok := ethhelpers.ContractOrNilFromConfigInContext(ctx, MyContractKey{}).(*MyContract)
+//   if !ok {
+//     return fmt.Errorf("missing my contract in context")
+//   }
 //
-// contract, err := contractHelper.ContractFromContext(ctx)
-// if err != nil {
-//   return fmt.Errorf("failed to create my contract: %v", err)
-// }
-// ```
+//   contract, err := contractHelper.ContractFromContext(ctx)
+//   if err != nil {
+//     return fmt.Errorf("failed to create my contract: %v", err)
+//   }
+//
 func ContractOrNilFromConfigInContext(ctx context.Context, key interface{}) Contract {
 	c, _ := ContractFromConfigInContext(ctx, key)
 	return c
@@ -61,9 +60,9 @@ type rpcClientContextKey struct{}
 // The context will return the client when calling ClientFromContext
 // and other compatible methods.
 //
-// Note that there can only be one client type plust the RPC client
-// stored in the context, other client interface variants are stored
-// using the same context key.
+// Note that there can only be one client type in addition to the RPC
+// client stored in the context, other client interface variants are
+// stored using the same context key.
 func ContextWithClient(ctx context.Context, client Client) context.Context {
 	return context.WithValue(ctx, clientContextKey{}, client)
 }
