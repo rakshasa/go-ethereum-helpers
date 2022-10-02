@@ -15,13 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestWaitForTransactionReceipt(t *testing.T) {
-	assert := assert.New(t)
-
-	commit := ethtesting.PendingLogHandlerForTesting(t, log.Root())
-	defer commit()
-
-	sim := ethtesting.NewSimulatedBackendWithAccounts(
+func newTestDefaultSimulatedBackend() *ethtesting.SimulatedBackendWithAccounts {
+	return ethtesting.NewSimulatedBackendWithAccounts(
 		ethtesting.GenesisAccountWithPrivateKey{
 			PrivateKey: ethtesting.MockPrivateKey1,
 			GenesisAccount: core.GenesisAccount{
@@ -32,6 +27,15 @@ func TestWaitForTransactionReceipt(t *testing.T) {
 			PrivateKey: ethtesting.MockPrivateKey2,
 		},
 	)
+}
+
+func TestWaitForTransactionReceipt(t *testing.T) {
+	assert := assert.New(t)
+
+	commitLogs := ethtesting.PendingLogHandlerForTesting(t, log.Root())
+	defer commitLogs()
+
+	sim := newTestDefaultSimulatedBackend()
 	defer sim.Backend.Close()
 
 	ctx := context.Background()
@@ -45,9 +49,12 @@ func TestWaitForTransactionReceipt(t *testing.T) {
 		// TODO: If Client is nil get from ctx.
 		Client: sim.Backend,
 		TxHash: signedTx.Hash(),
-		ErrorHandler: DefaultErrorHandlerWithMessages(func(msg string) {
+		ErrorHandler: DefaultErrorHandlerWithMessages(func(txHash common.Hash, msg string) {
 			// TODO: Add a unit test for this.
-			fmt.Printf("%s : %s\n", signedTx.Hash().String(), msg)
+			fmt.Printf("%s : %s\n", txHash, msg)
+
+			assert.Equal(signedTx.Hash(), txHash)
+			assert.NotEmpty(msg)
 		}),
 	})
 	defer cancel()
@@ -59,8 +66,10 @@ func TestWaitForTransactionReceipt(t *testing.T) {
 	sim.Backend.Commit()
 
 	time.Sleep(5 * time.Second)
-	assert.NotEmpty(resultChan)
 
+	if !assert.NotEmpty(resultChan) {
+		return
+	}
 	result := <-resultChan
 
 	assert.Equal(uint64(1), result.Receipt.Status)
@@ -70,6 +79,66 @@ func TestWaitForTransactionReceipt(t *testing.T) {
 
 	time.Sleep(5 * time.Second)
 	assert.Empty(resultChan)
+}
 
-	// TODO: Test errors.
+// TODO: Add a tester that uses a mock wait funcion.
+func TestWaitTransactionReceipts(t *testing.T) {
+	assert := assert.New(t)
+
+	commitLogs := ethtesting.PendingLogHandlerForTesting(t, log.Root())
+	defer commitLogs()
+
+	sim := newTestDefaultSimulatedBackend()
+	defer sim.Backend.Close()
+
+	ctx := context.Background()
+
+	waiter := NewWaitTransactionReceipts(ctx, func(ctx context.Context, txHash common.Hash) (<-chan ReceiptOrError, func()) {
+		return WaitForTransactionReceipt(ctx, WaitForTransactionReceiptOptions{
+			Client: sim.Backend,
+			TxHash: txHash,
+			ErrorHandler: DefaultErrorHandlerWithMessages(func(txHash common.Hash, msg string) {
+				fmt.Printf("%s : %s\n", txHash, msg)
+
+				// assert.Equal(signedTx.Hash(), txHash)
+				assert.NotEmpty(msg)
+			}),
+		})
+	})
+
+	time.Sleep(5 * time.Second)
+	assert.Empty(waiter.Result())
+
+	signedTx1, err := sim.Accounts[0].SendNewTransaction(ctx, sim.Backend, sim.Accounts[0].NonceAndIncrement(), sim.Accounts[1].Address, big.NewInt(1000), params.TxGas, nil)
+	if !assert.NoError(err) {
+		return
+	}
+	waiter.Add(signedTx1.Hash())
+
+	// TODO: Find a way to test different transactions succeeding.
+	signedTx2, err := sim.Accounts[0].SendNewTransaction(ctx, sim.Backend, sim.Accounts[0].NonceAndIncrement(), sim.Accounts[1].Address, big.NewInt(1000), params.TxGas, nil)
+	if !assert.NoError(err) {
+		return
+	}
+	waiter.Add(signedTx2.Hash())
+
+	time.Sleep(5 * time.Second)
+	assert.Empty(waiter.Result())
+
+	sim.Backend.Commit()
+
+	time.Sleep(5 * time.Second)
+
+	if !assert.NotEmpty(waiter.Result()) {
+		return
+	}
+	result := <-waiter.Result()
+
+	assert.Equal(uint64(1), result.Receipt.Status)
+	assert.Equal(signedTx1.Hash(), result.Receipt.TxHash)
+	assert.Equal(common.Address{}, result.Receipt.ContractAddress)
+	assert.Nil(result.Error)
+
+	time.Sleep(5 * time.Second)
+	assert.Empty(waiter.Result())
 }

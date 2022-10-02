@@ -3,18 +3,16 @@ package ethhelpers
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
-	"syscall"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type WaitForTransactionReceiptOptions struct {
+	// TODO: Add TransactionReaderFromContext, use it if Client is nil.
 	Client ethereum.TransactionReader
 	TxHash common.Hash
 
@@ -23,7 +21,7 @@ type WaitForTransactionReceiptOptions struct {
 	//
 	// If the handler returns a non-nil error then the error is sent to the
 	// result channel and no further attempts are made.
-	ErrorHandler func(err error) error
+	ErrorHandler func(txHash common.Hash, err error) error
 }
 
 // TODO: Move to types.
@@ -36,7 +34,10 @@ type ReceiptOrError struct {
 //
 // The result channel always sends either the receipt or error, and does not close.
 //
+// The caller must ensure that either the context is canceled or the returned
+// cancel function is called.
 func WaitForTransactionReceipt(ctx context.Context, options WaitForTransactionReceiptOptions) (<-chan ReceiptOrError, func()) {
+	// TODO: Add a FooWithCancel variant.
 	ctx, cancel := context.WithCancel(ctx)
 
 	resultChan := make(chan ReceiptOrError, 1)
@@ -45,6 +46,7 @@ func WaitForTransactionReceipt(ctx context.Context, options WaitForTransactionRe
 		// TODO: Increase timeout per attempt, add options for timeouts.
 		// TODO: Add defaults based on chain config from context..
 		// TODO: Add an option to use "sub, err := client.SubscribeNewHead(context.Background(), headers)"
+		// TODO: Return error if txHash is zero value.
 
 		ticker := time.NewTicker(time.Duration(3) * time.Second)
 		defer ticker.Stop()
@@ -73,7 +75,7 @@ func WaitForTransactionReceipt(ctx context.Context, options WaitForTransactionRe
 				}
 			}
 
-			if err := options.ErrorHandler(err); err != nil {
+			if err := options.ErrorHandler(options.TxHash, err); err != nil {
 				resultChan <- ReceiptOrError{nil, err}
 				return
 			}
@@ -93,48 +95,111 @@ func WaitForTransactionReceipt(ctx context.Context, options WaitForTransactionRe
 	return resultChan, cancel
 }
 
-// DefaultErrorHandlerWithLogger is used by e.g. WaitForTransactionReceipt to
-// decide if the error is a temporary connection / receipt not found issue and
-// it should retry.
-//
-// This is a work-in-progress.
-func DefaultErrorHandlerWithMessages(msgHandler func(msg string)) func(err error) error {
-	return func(err error) error {
-		var rpcErr rpc.Error
+type WaitTransactionReceipts struct {
+	mu sync.Mutex
 
-		switch {
-		case errors.As(err, &rpcErr):
-			// TODO: We should have optional permissive error handling code for
-			// temporary errors.
-			if err.Error() == "request failed or timed out" {
-				msgHandler(fmt.Sprintf("waiting for transaction receipt, temporary error : %d : %v", rpcErr.ErrorCode(), rpcErr))
-				break
-			}
+	ctx    context.Context
+	cancel func()
+	count  int
 
-			msgHandler(fmt.Sprintf("waiting for transaction receipt, unknown rpc error : %d : %v", rpcErr.ErrorCode(), rpcErr))
-			return err
+	// TODO: The cancel function is probably unnessesary.
+	addFn       func(context.Context, common.Hash) (<-chan ReceiptOrError, func())
+	collectChan chan ReceiptOrError
+	resultChan  chan ReceiptOrError
+}
 
-		case errors.Is(err, context.Canceled):
-			msgHandler(fmt.Sprintf("waiting for transaction receipt, context canceled"))
+func NewWaitTransactionReceipts(ctx context.Context, addFn func(context.Context, common.Hash) (<-chan ReceiptOrError, func())) *WaitTransactionReceipts {
+	ctx, cancel := context.WithCancel(ctx)
 
-		case errors.Is(err, context.DeadlineExceeded):
-			msgHandler(fmt.Sprintf("waiting for transaction receipt, context deadline"))
+	w := &WaitTransactionReceipts{
+		ctx:    ctx,
+		cancel: cancel,
 
-		case errors.Is(err, ethereum.NotFound):
-			msgHandler(fmt.Sprintf("waiting for transaction receipt, not found"))
-
-		case errors.Is(err, syscall.ECONNRESET):
-			msgHandler(fmt.Sprintf("waiting for transaction receipt, connection reset by peer"))
-
-		case os.IsTimeout(err):
-			msgHandler(fmt.Sprintf("waiting for transaction receipt, timeout"))
-
-		// TODO: Check non-temporary errors.
-		default:
-			msgHandler(fmt.Sprintf("waiting for transaction receipt, unknown error : %v", err))
-			return err
-		}
-
-		return nil
+		addFn:       addFn,
+		collectChan: make(chan ReceiptOrError, 16),
+		resultChan:  make(chan ReceiptOrError, 1),
 	}
+
+	pickErrorFn := func(currentError, newError error) error {
+		switch {
+		case currentError == nil:
+			return newError
+		case currentError == context.Canceled:
+			return newError
+		case newError == context.Canceled:
+			return currentError
+		case newError == context.DeadlineExceeded:
+			return currentError
+		default:
+			return newError
+		}
+	}
+
+	go func() {
+		var currentError error
+
+		for {
+			select {
+			case result := <-w.collectChan:
+				w.mu.Lock()
+				w.count--
+
+				if result.Error == nil {
+					w.resultChan <- result
+
+					cancel()
+					w.mu.Unlock()
+					return
+				}
+
+				// TODO: Need to improve the collection of errors to make it
+				// prefer the lastest txhash, perhaps add an index.
+				currentError = pickErrorFn(currentError, result.Error)
+
+				if w.count != 0 {
+					if errors.Is(currentError, context.Canceled) || errors.Is(currentError, context.DeadlineExceeded) {
+						w.mu.Unlock()
+						continue
+					}
+				}
+
+				w.resultChan <- ReceiptOrError{Error: currentError}
+
+				cancel()
+				w.mu.Unlock()
+				return
+
+			case <-ctx.Done():
+				w.resultChan <- ReceiptOrError{Error: ctx.Err()}
+				return
+			}
+		}
+	}()
+
+	return w
+}
+
+// TODO: Add different different WatchFor* functions that allow us to use either
+// pooling TransactionReceipt or a websocket subscription.
+func (w *WaitTransactionReceipts) Add(txHash common.Hash) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	ch, cancel := w.addFn(w.ctx, txHash)
+
+	go func() {
+		w.collectChan <- (<-ch)
+		cancel()
+	}()
+
+	w.count++
+}
+
+// Only read channel once.
+func (w *WaitTransactionReceipts) Result() <-chan ReceiptOrError {
+	return w.resultChan
+}
+
+func (w *WaitTransactionReceipts) Stop() {
+	w.cancel()
 }
