@@ -1,4 +1,4 @@
-package ethhelpers
+package ethhelpers_test
 
 import (
 	"context"
@@ -11,12 +11,15 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/rakshasa/go-ethereum-helpers/ethhelpers"
 	"github.com/rakshasa/go-ethereum-helpers/ethtesting"
 	"github.com/stretchr/testify/assert"
 )
 
-func newTestDefaultSimulatedBackend() *ethtesting.SimulatedBackendWithAccounts {
-	return ethtesting.NewSimulatedBackendWithAccounts(
+func newTestDefaultSimulatedBackend(t *testing.T) (*ethtesting.SimulatedBackendWithAccounts, func()) {
+	commitLogs := ethtesting.PendingLogHandlerForTesting(t, log.Root())
+
+	sim := ethtesting.NewSimulatedBackendWithAccounts(
 		ethtesting.GenesisAccountWithPrivateKey{
 			PrivateKey: ethtesting.MockPrivateKey1,
 			GenesisAccount: core.GenesisAccount{
@@ -27,16 +30,18 @@ func newTestDefaultSimulatedBackend() *ethtesting.SimulatedBackendWithAccounts {
 			PrivateKey: ethtesting.MockPrivateKey2,
 		},
 	)
+
+	return sim, func() {
+		sim.Backend.Close()
+		commitLogs()
+	}
 }
 
 func TestWaitForTransactionReceipt(t *testing.T) {
 	assert := assert.New(t)
 
-	commitLogs := ethtesting.PendingLogHandlerForTesting(t, log.Root())
-	defer commitLogs()
-
-	sim := newTestDefaultSimulatedBackend()
-	defer sim.Backend.Close()
+	sim, closeSim := newTestDefaultSimulatedBackend(t)
+	defer closeSim()
 
 	ctx := context.Background()
 
@@ -45,11 +50,11 @@ func TestWaitForTransactionReceipt(t *testing.T) {
 		return
 	}
 
-	resultChan, cancel := WaitForTransactionReceipt(ctx, WaitForTransactionReceiptOptions{
+	resultChan, cancel := ethhelpers.WaitForTransactionReceipt(ctx, ethhelpers.WaitForTransactionReceiptOptions{
 		// TODO: If Client is nil get from ctx.
 		Client: sim.Backend,
 		TxHash: signedTx.Hash(),
-		ErrorHandler: DefaultErrorHandlerWithMessages(func(txHash common.Hash, msg string) {
+		ErrorHandler: ethhelpers.DefaultErrorHandlerWithMessages(func(txHash common.Hash, msg string) {
 			// TODO: Add a unit test for this.
 			fmt.Printf("%s : %s\n", txHash, msg)
 
@@ -85,19 +90,16 @@ func TestWaitForTransactionReceipt(t *testing.T) {
 func TestWaitTransactionReceipts(t *testing.T) {
 	assert := assert.New(t)
 
-	commitLogs := ethtesting.PendingLogHandlerForTesting(t, log.Root())
-	defer commitLogs()
-
-	sim := newTestDefaultSimulatedBackend()
-	defer sim.Backend.Close()
+	sim, closeSim := newTestDefaultSimulatedBackend(t)
+	defer closeSim()
 
 	ctx := context.Background()
 
-	waiter := NewWaitTransactionReceipts(ctx, func(ctx context.Context, txHash common.Hash) (<-chan ReceiptOrError, func()) {
-		return WaitForTransactionReceipt(ctx, WaitForTransactionReceiptOptions{
+	waiter := ethhelpers.NewWaitTransactionReceipts(ctx, func(ctx context.Context, txHash common.Hash) (<-chan ethhelpers.ReceiptOrError, func()) {
+		return ethhelpers.WaitForTransactionReceipt(ctx, ethhelpers.WaitForTransactionReceiptOptions{
 			Client: sim.Backend,
 			TxHash: txHash,
-			ErrorHandler: DefaultErrorHandlerWithMessages(func(txHash common.Hash, msg string) {
+			ErrorHandler: ethhelpers.DefaultErrorHandlerWithMessages(func(txHash common.Hash, msg string) {
 				fmt.Printf("%s : %s\n", txHash, msg)
 
 				// assert.Equal(signedTx.Hash(), txHash)
@@ -105,6 +107,7 @@ func TestWaitTransactionReceipts(t *testing.T) {
 			}),
 		})
 	})
+	defer waiter.Stop()
 
 	time.Sleep(5 * time.Second)
 	assert.Empty(waiter.Result())
@@ -135,7 +138,13 @@ func TestWaitTransactionReceipts(t *testing.T) {
 	result := <-waiter.Result()
 
 	assert.Equal(uint64(1), result.Receipt.Status)
-	assert.Equal(signedTx1.Hash(), result.Receipt.TxHash)
+
+	if signedTx1.Hash() == result.Receipt.TxHash {
+		assert.Equal(signedTx1.Hash(), result.Receipt.TxHash)
+	} else {
+		assert.Equal(signedTx2.Hash(), result.Receipt.TxHash)
+	}
+
 	assert.Equal(common.Address{}, result.Receipt.ContractAddress)
 	assert.Nil(result.Error)
 

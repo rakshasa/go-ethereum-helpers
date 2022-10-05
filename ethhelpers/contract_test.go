@@ -1,4 +1,4 @@
-package ethhelpers
+package ethhelpers_test
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/rakshasa/go-ethereum-helpers/ethhelpers"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -33,7 +34,7 @@ func TestContractContainer(t *testing.T) {
 		{
 			"empty",
 			func(name string) {
-				c := ContractContainer{}
+				c := ethhelpers.ContractContainer{}
 
 				c.Delete(key1{})
 
@@ -47,7 +48,7 @@ func TestContractContainer(t *testing.T) {
 		}, {
 			"new",
 			func(name string) {
-				c := NewContractContainer()
+				c := ethhelpers.NewContractContainer()
 
 				contract, ok := c.Get(key1{})
 				assert.Nil(contract, name)
@@ -56,7 +57,7 @@ func TestContractContainer(t *testing.T) {
 		}, {
 			"put",
 			func(name string) {
-				c := NewContractContainer()
+				c := ethhelpers.NewContractContainer()
 				expectedContract1 := &testContract{}
 				expectedContract2 := &testContract{}
 
@@ -87,7 +88,7 @@ func TestContractContainer(t *testing.T) {
 		}, {
 			"delete",
 			func(name string) {
-				c := NewContractContainer()
+				c := ethhelpers.NewContractContainer()
 				expectedContract1 := &testContract{}
 				expectedContract2 := &testContract{}
 

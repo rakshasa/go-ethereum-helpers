@@ -1,4 +1,4 @@
-package ethtesting
+package ethtesting_test
 
 import (
 	"context"
@@ -9,22 +9,23 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/rakshasa/go-ethereum-helpers/ethtesting"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestSimulatedBackendWithAccounts(t *testing.T) {
-	commit := PendingLogHandlerForTesting(t, log.Root())
+	commit := ethtesting.PendingLogHandlerForTesting(t, log.Root())
 	defer commit()
 
-	sim := NewSimulatedBackendWithAccounts(
-		GenesisAccountWithPrivateKey{
-			PrivateKey: MockPrivateKey1,
+	sim := ethtesting.NewSimulatedBackendWithAccounts(
+		ethtesting.GenesisAccountWithPrivateKey{
+			PrivateKey: ethtesting.MockPrivateKey1,
 			GenesisAccount: core.GenesisAccount{
 				Balance: big.NewInt(10_000_000_000_000_000),
 			},
 		},
-		GenesisAccountWithPrivateKey{
-			PrivateKey: MockPrivateKey2,
+		ethtesting.GenesisAccountWithPrivateKey{
+			PrivateKey: ethtesting.MockPrivateKey2,
 		},
 	)
 	defer sim.Backend.Close()
