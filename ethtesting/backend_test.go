@@ -1,4 +1,4 @@
-package ethtesting
+package ethtesting_test
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/rakshasa/go-ethereum-helpers/ethtesting"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -36,10 +37,10 @@ var genesis = &core.Genesis{
 }
 
 func newTestBackend(t *testing.T) (*node.Node, []*types.Block) {
-	blocks, _, err := GenerateTestChain(genesis, &SimpleBlockGenerator{
+	blocks, _, err := ethtesting.GenerateTestChain(genesis, &ethtesting.SimpleBlockGenerator{
 		ExpectedHeight: 10,
 		ExtraGenerator: func(int, *core.BlockGen) []byte { return []byte("test backend") },
-		Transactions: []TransactionWithHeight{
+		Transactions: []ethtesting.TransactionWithHeight{
 			{1, types.MustSignNewTx(testKey, types.LatestSigner(genesis.Config), &types.LegacyTx{
 				Nonce:    0,
 				Value:    big.NewInt(12),
@@ -60,7 +61,7 @@ func newTestBackend(t *testing.T) (*node.Node, []*types.Block) {
 		t.Fatalf("could not generate test chain")
 	}
 
-	backend, err := NewTestBackend(
+	backend, err := ethtesting.NewTestBackend(
 		node.Config{},
 		genesis,
 		blocks,
@@ -73,13 +74,11 @@ func newTestBackend(t *testing.T) (*node.Node, []*types.Block) {
 }
 
 func TestGenerateBackend(t *testing.T) {
-	commit := PendingLogHandlerForTesting(t, log.Root())
+	commit := ethtesting.PendingLogHandlerForTesting(t, log.Root())
 	defer commit()
 
 	backend, _ := newTestBackend(t)
 	defer backend.Close()
-
-	// TODO: Verify tx count and block numbers.
 
 	rpcClient, _ := backend.Attach()
 	defer rpcClient.Close()

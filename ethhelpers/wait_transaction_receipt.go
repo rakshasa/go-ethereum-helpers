@@ -136,6 +136,8 @@ func NewWaitTransactionReceipts(ctx context.Context, addFn func(context.Context,
 	}
 
 	go func() {
+		defer cancel()
+
 		var currentError error
 
 		for {

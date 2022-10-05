@@ -1,4 +1,4 @@
-package ethhelpers
+package ethhelpers_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/rakshasa/go-ethereum-helpers/ethhelpers"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,21 +23,21 @@ func TestClientFromContext(t *testing.T) {
 		{
 			"client : empty context",
 			func(name string) {
-				c, ok := ClientFromContext(context.Background())
+				c, ok := ethhelpers.ClientFromContext(context.Background())
 				assert.Nil(c, name)
 				assert.False(ok, name)
 			},
 		}, {
 			"limited client : empty context",
 			func(name string) {
-				c, ok := LimitedClientFromContext(context.Background())
+				c, ok := ethhelpers.LimitedClientFromContext(context.Background())
 				assert.Nil(c, name)
 				assert.False(ok, name)
 			},
 		}, {
 			"rpc client : empty context",
 			func(name string) {
-				c, ok := RPCClientFromContext(context.Background())
+				c, ok := ethhelpers.RPCClientFromContext(context.Background())
 				assert.Nil(c, name)
 				assert.False(ok, name)
 			},
@@ -44,18 +45,18 @@ func TestClientFromContext(t *testing.T) {
 			"with clients from rpc client",
 			func(name string) {
 				stored := &rpc.Client{}
-				ctx := ContextWithClientsFromRPCClient(context.Background(), stored)
+				ctx := ethhelpers.ContextWithClientsFromRPCClient(context.Background(), stored)
 
-				e, ok := ClientFromContext(ctx)
+				e, ok := ethhelpers.ClientFromContext(ctx)
 				assert.NotNil(e, name)
 				assert.True(ok, name)
-				c, ok := ConfigFromContext(ctx)
-				assert.Equal(Config{}, c, name)
+				c, ok := ethhelpers.ConfigFromContext(ctx)
+				assert.Equal(ethhelpers.Config{}, c, name)
 				assert.False(ok, name)
-				l, ok := LimitedClientFromContext(ctx)
+				l, ok := ethhelpers.LimitedClientFromContext(ctx)
 				assert.NotNil(l, name)
 				assert.True(ok, name)
-				r, ok := RPCClientFromContext(ctx)
+				r, ok := ethhelpers.RPCClientFromContext(ctx)
 				assert.Same(stored, r, name)
 				assert.True(ok, name)
 			},
@@ -63,18 +64,18 @@ func TestClientFromContext(t *testing.T) {
 			"with ethclient client",
 			func(name string) {
 				stored := &ethclient.Client{}
-				ctx := ContextWithClient(context.Background(), stored)
+				ctx := ethhelpers.ContextWithClient(context.Background(), stored)
 
-				e, ok := ClientFromContext(ctx)
+				e, ok := ethhelpers.ClientFromContext(ctx)
 				assert.Same(stored, e, name)
 				assert.True(ok, name)
-				c, ok := ConfigFromContext(ctx)
-				assert.Equal(Config{}, c, name)
+				c, ok := ethhelpers.ConfigFromContext(ctx)
+				assert.Equal(ethhelpers.Config{}, c, name)
 				assert.False(ok, name)
-				l, ok := LimitedClientFromContext(ctx)
+				l, ok := ethhelpers.LimitedClientFromContext(ctx)
 				assert.NotNil(l, name)
 				assert.True(ok, name)
-				r, ok := RPCClientFromContext(ctx)
+				r, ok := ethhelpers.RPCClientFromContext(ctx)
 				assert.Nil(r, name)
 				assert.False(ok, name)
 			},
@@ -82,18 +83,18 @@ func TestClientFromContext(t *testing.T) {
 			"with rpc client",
 			func(name string) {
 				stored := &rpc.Client{}
-				ctx := ContextWithRPCClient(context.Background(), stored)
+				ctx := ethhelpers.ContextWithRPCClient(context.Background(), stored)
 
-				e, ok := ClientFromContext(ctx)
+				e, ok := ethhelpers.ClientFromContext(ctx)
 				assert.Nil(e, name)
 				assert.False(ok, name)
-				c, ok := ConfigFromContext(ctx)
-				assert.Equal(Config{}, c, name)
+				c, ok := ethhelpers.ConfigFromContext(ctx)
+				assert.Equal(ethhelpers.Config{}, c, name)
 				assert.False(ok, name)
-				l, ok := LimitedClientFromContext(ctx)
+				l, ok := ethhelpers.LimitedClientFromContext(ctx)
 				assert.Nil(l, name)
 				assert.False(ok, name)
-				r, ok := RPCClientFromContext(ctx)
+				r, ok := ethhelpers.RPCClientFromContext(ctx)
 				assert.Same(stored, r, name)
 				assert.True(ok, name)
 			},
@@ -101,18 +102,18 @@ func TestClientFromContext(t *testing.T) {
 			"with simulated backend client",
 			func(name string) {
 				stored := &backends.SimulatedBackend{}
-				ctx := ContextWithLimitedClient(context.Background(), stored)
+				ctx := ethhelpers.ContextWithLimitedClient(context.Background(), stored)
 
-				e, ok := ClientFromContext(ctx)
+				e, ok := ethhelpers.ClientFromContext(ctx)
 				assert.Nil(e, name)
 				assert.False(ok, name)
-				c, ok := ConfigFromContext(ctx)
-				assert.Equal(Config{}, c, name)
+				c, ok := ethhelpers.ConfigFromContext(ctx)
+				assert.Equal(ethhelpers.Config{}, c, name)
 				assert.False(ok, name)
-				l, ok := LimitedClientFromContext(ctx)
+				l, ok := ethhelpers.LimitedClientFromContext(ctx)
 				assert.NotNil(l, name)
 				assert.True(ok, name)
-				r, ok := RPCClientFromContext(ctx)
+				r, ok := ethhelpers.RPCClientFromContext(ctx)
 				assert.Nil(r, name)
 				assert.False(ok, name)
 			},
@@ -134,46 +135,46 @@ func TestConfigFromContext(t *testing.T) {
 		{
 			"empty context",
 			func(name string) {
-				c, ok := RPCClientFromContext(context.Background())
+				c, ok := ethhelpers.RPCClientFromContext(context.Background())
 				assert.Nil(c, name)
 				assert.False(ok, name)
 			},
 		}, {
 			"with config",
 			func(name string) {
-				stored := Config{Endpoint: "test"}
-				ctx := ContextWithConfig(context.Background(), stored)
+				stored := ethhelpers.Config{Endpoint: "test"}
+				ctx := ethhelpers.ContextWithConfig(context.Background(), stored)
 
-				e, ok := ClientFromContext(ctx)
+				e, ok := ethhelpers.ClientFromContext(ctx)
 				assert.Nil(e, name)
 				assert.False(ok, name)
-				c, ok := ConfigFromContext(ctx)
+				c, ok := ethhelpers.ConfigFromContext(ctx)
 				assert.Equal(stored, c, name)
 				assert.True(ok, name)
-				r, ok := RPCClientFromContext(ctx)
+				r, ok := ethhelpers.RPCClientFromContext(ctx)
 				assert.Nil(r, name)
 				assert.False(ok, name)
 			},
 		}, {
 			"with config and clients",
 			func(name string) {
-				storedConfig := Config{
+				storedConfig := ethhelpers.Config{
 					Endpoint: "test",
 					ChainId:  big.NewInt(5),
 				}
 				storedRpcClient := &rpc.Client{}
 
 				ctx := context.Background()
-				ctx = ContextWithConfig(ctx, storedConfig)
-				ctx = ContextWithClientsFromRPCClient(ctx, storedRpcClient)
+				ctx = ethhelpers.ContextWithConfig(ctx, storedConfig)
+				ctx = ethhelpers.ContextWithClientsFromRPCClient(ctx, storedRpcClient)
 
-				e, ok := ClientFromContext(ctx)
+				e, ok := ethhelpers.ClientFromContext(ctx)
 				assert.NotNil(e, name)
 				assert.True(ok, name)
-				c, ok := ConfigFromContext(ctx)
+				c, ok := ethhelpers.ConfigFromContext(ctx)
 				assert.Equal(storedConfig, c, name)
 				assert.True(ok, name)
-				r, ok := RPCClientFromContext(ctx)
+				r, ok := ethhelpers.RPCClientFromContext(ctx)
 				assert.Same(storedRpcClient, r, name)
 				assert.True(ok, name)
 			},
@@ -181,24 +182,24 @@ func TestConfigFromContext(t *testing.T) {
 			"with contract",
 			func(name string) {
 				// TODO: Add tests with empty Contracts.
-				config := Config{Contracts: NewContractContainer()}
-				ctx := ContextWithConfig(context.Background(), config)
+				config := ethhelpers.Config{Contracts: ethhelpers.NewContractContainer()}
+				ctx := ethhelpers.ContextWithConfig(context.Background(), config)
 
-				c, ok := ContractFromConfigInContext(ctx, 1)
+				c, ok := ethhelpers.ContractFromConfigInContext(ctx, 1)
 				assert.Nil(c, name)
 				assert.False(ok, name)
 
-				c = ContractOrNilFromConfigInContext(ctx, 1)
+				c = ethhelpers.ContractOrNilFromConfigInContext(ctx, 1)
 				assert.Nil(c, name)
 
 				stored := &testContract{}
 				config.Contracts.Put(1, stored)
 
-				c, ok = ContractFromConfigInContext(ctx, 1)
+				c, ok = ethhelpers.ContractFromConfigInContext(ctx, 1)
 				assert.Equal(stored, c, name)
 				assert.True(ok, name)
 
-				c = ContractOrNilFromConfigInContext(ctx, 1)
+				c = ethhelpers.ContractOrNilFromConfigInContext(ctx, 1)
 				assert.Equal(stored, c, name)
 			},
 		},
