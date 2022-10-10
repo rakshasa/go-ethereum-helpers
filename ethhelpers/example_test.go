@@ -7,8 +7,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/rakshasa/go-ethereum-helpers/ethhelpers"
 	"github.com/rakshasa/go-ethereum-helpers/ethtesting"
 
@@ -37,25 +35,13 @@ func newExampleDefaultSimulatedBackend() (*ethtesting.SimulatedBackendWithAccoun
 	}
 }
 
-func sendExampleTransaction(ctx context.Context, sim *ethtesting.SimulatedBackendWithAccounts) (*types.Transaction, error) {
-	return sim.Accounts[0].SendNewTransaction(
-		ctx,
-		sim.Backend,
-		sim.Accounts[0].NonceAndIncrement(),
-		sim.Accounts[1].Address,
-		big.NewInt(1000),
-		params.TxGas,
-		nil,
-	)
-}
-
 func ExampleWaitForTransactionReceipt() {
 	ctx := context.Background()
 
 	sim, closeSim := newExampleDefaultSimulatedBackend()
 	defer closeSim()
 
-	signedTx, err := sendExampleTransaction(ctx, sim)
+	signedTx, err := sendTestTransaction(ctx, sim)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -96,13 +82,13 @@ func ExampleWaitTransactionReceipts() {
 	})
 	defer waiter.Stop()
 
-	signedTx1, err := sendExampleTransaction(ctx, sim)
+	signedTx1, err := sendTestTransaction(ctx, sim)
 	if err != nil {
 		log.Fatal(err)
 	}
 	waiter.Add(signedTx1.Hash())
 
-	signedTx2, err := sendExampleTransaction(ctx, sim)
+	signedTx2, err := sendTestTransaction(ctx, sim)
 	if err != nil {
 		log.Fatal(err)
 	}
