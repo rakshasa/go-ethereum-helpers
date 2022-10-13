@@ -3,21 +3,26 @@ package ethhelpers
 import (
 	"context"
 	"math/big"
-	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
+const (
+	maxFilterLogWindow = 1000
+)
+
 type clientWithHTTPSubscriptions struct {
 	Client
+	newTickerFn func(context.Context, BlockNumberReader) BlockNumberTicker
 }
 
 // TODO: Add options.
 
-func NewClientWithHTTPSubscriptions(c Client) Client {
+func NewClientWithHTTPSubscriptions(client Client, newTickerFn func(context.Context, BlockNumberReader) BlockNumberTicker) Client {
 	return &clientWithHTTPSubscriptions{
-		Client: c,
+		Client:      client,
+		newTickerFn: newTickerFn,
 	}
 }
 
@@ -27,19 +32,6 @@ func (c *clientWithHTTPSubscriptions) SubscribeFilterLogs(ctx context.Context, f
 	if logChan == nil {
 		panic("channel given to SubscribeFilterLogs must not be nil")
 	}
-
-	// var fromBlock
-
-	if filterQuery.FromBlock == nil {
-		blockNum, err := c.BlockNumber(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		filterQuery.FromBlock = new(big.Int).SetUint64(blockNum)
-	}
-
-	// filterQuery.ToBlock = new(big.Int)
 
 	subCtx, subCancel := context.WithCancel(context.Background())
 	errChan := make(chan error, 1)
@@ -53,30 +45,42 @@ func (c *clientWithHTTPSubscriptions) SubscribeFilterLogs(ctx context.Context, f
 	go func(ctx context.Context) {
 		defer close(sub.unsubDone)
 
+		ticker := c.newTickerFn(ctx, c.Client)
+
+		var fromBlockNum uint64
+		var toBlockNum uint64
+
 		for {
 			select {
+			case toBlockNum = <-ticker.Wait():
+				if fromBlockNum == 0 {
+					fromBlockNum = toBlockNum
+				}
+
+			case err, ok := <-ticker.Err():
+				if !ok {
+					errChan <- context.Canceled
+					return
+				}
+
+				errChan <- err
+				return
+
 			case <-ctx.Done():
 				errChan <- ctx.Err()
 				return
-			default:
 			}
 
-			// TODO: Add a head block number ticker type helper for use with all
-			// block polling queries.
-			blockNum, err := c.BlockNumber(ctx)
-			if err != nil {
-				errChan <- err
-				return
-			}
-
-			// TOOD: Change to always use uint64 values.
-			q := filterQuery
-			q.ToBlock = new(big.Int).SetUint64(blockNum)
-
-			if q.ToBlock.Cmp(q.FromBlock) < 0 {
-				time.Sleep(3 * time.Second)
+			if toBlockNum < fromBlockNum {
 				continue
 			}
+			if toBlockNum > maxFilterLogWindow && toBlockNum-maxFilterLogWindow > fromBlockNum {
+				toBlockNum = fromBlockNum + maxFilterLogWindow
+			}
+
+			q := filterQuery
+			q.FromBlock = new(big.Int).SetUint64(fromBlockNum)
+			q.ToBlock = new(big.Int).SetUint64(toBlockNum)
 
 			logs, err := c.Client.FilterLogs(ctx, q)
 			if err != nil {
@@ -93,10 +97,7 @@ func (c *clientWithHTTPSubscriptions) SubscribeFilterLogs(ctx context.Context, f
 				}
 			}
 
-			filterQuery.FromBlock.Add(q.ToBlock, big.NewInt(1))
-
-			// TODO: Replace with ticker.
-			time.Sleep(3 * time.Second)
+			fromBlockNum = toBlockNum + 1
 		}
 	}(subCtx)
 

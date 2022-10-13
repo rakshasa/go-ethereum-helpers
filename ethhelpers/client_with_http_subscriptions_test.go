@@ -24,7 +24,11 @@ func TestClientWithHTTPSubscriptions_SubscribeFilterLogs(t *testing.T) {
 	sim, contract, closeSim := newTestDefaultSimulatedBackendWithCallableContract(t)
 	defer closeSim()
 
-	client := ethhelpers.NewClientWithHTTPSubscriptions(ethtesting.NewSimulatedClient(sim.Backend))
+	// TODO: Speed up the test.
+	client := ethhelpers.NewClientWithHTTPSubscriptions(
+		ethtesting.NewSimulatedClient(sim.Backend),
+		ethhelpers.FactoryForNewBlockNumberTickerWithDuration(time.Second/4),
+	)
 
 	logChan := make(chan types.Log, 1)
 
@@ -35,7 +39,7 @@ func TestClientWithHTTPSubscriptions_SubscribeFilterLogs(t *testing.T) {
 
 	commitAndNoErrorFn := func() bool {
 		sim.Backend.Commit()
-		time.Sleep(5 * time.Second)
+		time.Sleep(time.Second)
 
 		select {
 		case err, ok := <-sub.Err():
@@ -87,7 +91,7 @@ func TestClientWithHTTPSubscriptions_SubscribeFilterLogs(t *testing.T) {
 
 	sub.Unsubscribe()
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(time.Second)
 
 	if !assert.Empty(logChan) {
 		fmt.Printf("got log: %+v", <-logChan)
