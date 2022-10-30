@@ -44,13 +44,15 @@ RUN go version
 
 FROM build-env AS build
 
+ARG EXTRA_TEST_ARGS=
+
 COPY . ./
 
 RUN --mount=type=cache,target=/go/cache set -eux; \
   go vet ./...
 
 RUN --mount=type=cache,target=/go/cache set -eux; \
-  go test -ldflags "-s -w -extldflags '-static -fno-PIC'" ./...
+  go test -ldflags "-s -w -extldflags '-static -fno-PIC'" ${EXTRA_TEST_ARGS} ./...
 
 
 

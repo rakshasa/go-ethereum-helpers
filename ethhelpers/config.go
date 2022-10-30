@@ -6,6 +6,6 @@ import (
 
 type Config struct {
 	Endpoint  string
-	ChainId   *big.Int
+	ChainId   *big.Int // TODO: ChainID
 	Contracts ContractContainer
 }

@@ -47,3 +47,14 @@ func BigIntAsUint64OrZero(v *big.Int) uint64 {
 	n, _ := BigIntAsUint64(v)
 	return n
 }
+
+func BigIntAsUint64OrZeroIfNil(v *big.Int) (uint64, bool) {
+	if v == nil {
+		return 0, true
+	}
+	if !v.IsUint64() {
+		return 0, false
+	}
+
+	return v.Uint64(), true
+}

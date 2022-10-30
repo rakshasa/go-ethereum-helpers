@@ -47,6 +47,24 @@ func newTestDefaultSimulatedBackendWithCallableContract(t *testing.T) (*ethtesti
 	return sim, contract, cancel
 }
 
+func readLogFromChan(ch <-chan types.Log) (types.Log, bool) {
+	select {
+	case r := <-ch:
+		return r, true
+	default:
+		return types.Log{}, false
+	}
+}
+
+func readUint64FromChan(ch <-chan uint64) (uint64, bool) {
+	select {
+	case r := <-ch:
+		return r, true
+	default:
+		return 0, false
+	}
+}
+
 func sendTestTransaction(ctx context.Context, sim *ethtesting.SimulatedBackendWithAccounts) (*types.Transaction, error) {
 	return sim.Accounts[0].SendNewTransaction(
 		ctx,

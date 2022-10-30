@@ -2,7 +2,6 @@ package ethhelpers_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -27,7 +26,7 @@ func TestClientWithHTTPSubscriptions_SubscribeFilterLogs(t *testing.T) {
 	// TODO: Speed up the test.
 	client := ethhelpers.NewClientWithHTTPSubscriptions(
 		ethtesting.NewSimulatedClient(sim.Backend),
-		ethhelpers.FactoryForNewBlockNumberTickerWithDuration(time.Second/4),
+		ethhelpers.FactoryForPeriodicBlockNumberTickerWithFromBlock(ethtesting.NewSimulatedClient(sim.Backend), time.Second/4),
 	)
 
 	logChan := make(chan types.Log, 1)
@@ -36,6 +35,8 @@ func TestClientWithHTTPSubscriptions_SubscribeFilterLogs(t *testing.T) {
 	if !assert.NoError(err) {
 		return
 	}
+
+	time.Sleep(time.Second)
 
 	commitAndNoErrorFn := func() bool {
 		sim.Backend.Commit()
@@ -52,15 +53,15 @@ func TestClientWithHTTPSubscriptions_SubscribeFilterLogs(t *testing.T) {
 		}
 	}
 	verifyWithTxHashFn := func(txHash common.Hash) bool {
-		if !assert.NotEmpty(logChan) {
-			return false
-		}
-
 		select {
-		case log := <-logChan:
-			return assert.Equal(txHash, log.TxHash)
-		default:
-			assert.Fail("log channel is empty")
+		case log, ok := <-logChan:
+			return assert.True(ok) && assert.Equal(txHash, log.TxHash)
+		case err, ok := <-sub.Err():
+			assert.NoError(err)
+			assert.False(ok)
+			return false
+		case <-ctx.Done():
+			assert.Fail("timed out")
 			return false
 		}
 	}
@@ -93,15 +94,21 @@ func TestClientWithHTTPSubscriptions_SubscribeFilterLogs(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-	if !assert.Empty(logChan) {
-		fmt.Printf("got log: %+v", <-logChan)
+	if _, ok := readLogFromChan(logChan); !assert.False(ok) {
+		return
 	}
 
 	select {
-	case err, ok := <-sub.Err():
-		assert.Nil(err)
+	case err := <-sub.Err():
+		assert.Error(err)
+	case <-ctx.Done():
+		assert.Fail("timed out")
+	}
+
+	select {
+	case _, ok := <-sub.Err():
 		assert.False(ok)
-	default:
-		assert.Fail("error channel not closed")
+	case <-ctx.Done():
+		assert.Fail("timed out")
 	}
 }

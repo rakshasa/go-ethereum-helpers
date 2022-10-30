@@ -27,11 +27,19 @@ build_targets=(
   build
 )
 
+build_args=(
+  --file "${project_root}"/dockerfile
+  --progress plain
+)
+
+if [[ -n "${EXTRA_TEST_ARGS:-}" ]]; then
+  build_args+=(--build-arg "EXTRA_TEST_ARGS=${EXTRA_TEST_ARGS}")
+fi
+
 for target in "${build_targets[@]}"; do
   docker build \
-    --tag "go-ethereum-helpers-${target}:${git_short_rev}" \
     --target "${target}" \
-    --file "${project_root}"/dockerfile \
-    --progress plain \
+    --tag "go-ethereum-helpers-${target}:${git_short_rev}" \
+    "${build_args[@]}" \
     "${project_root}"
 done
