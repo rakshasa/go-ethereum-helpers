@@ -2,8 +2,10 @@ package ethhelpers_test
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -33,6 +35,57 @@ func newExampleDefaultSimulatedBackend() (*ethtesting.SimulatedBackendWithAccoun
 		sim.Backend.Close()
 		ethlog.Root().SetHandler(oldHandler)
 	}
+}
+
+func ExampleNewPeriodicBlockNumberTicker() {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	sim, closeSim := newExampleDefaultSimulatedBackend()
+	defer closeSim()
+
+	fromBlock := uint64(3)
+
+	ticker := ethhelpers.NewPeriodicBlockNumberTicker(ctx, ethtesting.NewSimulatedClient(sim.Backend), fromBlock, 200*time.Millisecond)
+	defer ticker.Stop()
+
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+
+		for {
+			select {
+			case <-time.After(100 * time.Millisecond):
+				sim.Backend.Commit()
+			case <-ctx.Done():
+			}
+		}
+	}()
+
+	for {
+		select {
+		case num := <-ticker.Wait():
+			fmt.Printf("num: %d\n", num)
+
+			if num == 5 {
+				time.Sleep(500 * time.Millisecond)
+			}
+			if num < 12 {
+				continue
+			}
+
+		case err := <-ticker.Err():
+			fmt.Printf("err: %v\n", err)
+		}
+
+		return
+	}
+
+	// Output:
+	// num: 3
+	// num: 5
+	// num: 10
+	// num: 11
+	// num: 13
 }
 
 func ExampleWaitForTransactionReceipt() {
