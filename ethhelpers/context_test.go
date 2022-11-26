@@ -10,10 +10,11 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/rakshasa/go-ethereum-helpers/ethhelpers"
+	"github.com/rakshasa/go-ethereum-helpers/ethtesting"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestClientFromContext(t *testing.T) {
+func TestContext_ClientFromContext(t *testing.T) {
 	assert := assert.New(t)
 
 	tests := []struct {
@@ -24,13 +25,6 @@ func TestClientFromContext(t *testing.T) {
 			"client : empty context",
 			func(name string) {
 				c, ok := ethhelpers.ClientFromContext(context.Background())
-				assert.Nil(c, name)
-				assert.False(ok, name)
-			},
-		}, {
-			"limited client : empty context",
-			func(name string) {
-				c, ok := ethhelpers.LimitedClientFromContext(context.Background())
 				assert.Nil(c, name)
 				assert.False(ok, name)
 			},
@@ -53,9 +47,6 @@ func TestClientFromContext(t *testing.T) {
 				c, ok := ethhelpers.ConfigFromContext(ctx)
 				assert.Equal(ethhelpers.Config{}, c, name)
 				assert.False(ok, name)
-				l, ok := ethhelpers.LimitedClientFromContext(ctx)
-				assert.NotNil(l, name)
-				assert.True(ok, name)
 				r, ok := ethhelpers.RPCClientFromContext(ctx)
 				assert.Same(stored, r, name)
 				assert.True(ok, name)
@@ -72,9 +63,6 @@ func TestClientFromContext(t *testing.T) {
 				c, ok := ethhelpers.ConfigFromContext(ctx)
 				assert.Equal(ethhelpers.Config{}, c, name)
 				assert.False(ok, name)
-				l, ok := ethhelpers.LimitedClientFromContext(ctx)
-				assert.NotNil(l, name)
-				assert.True(ok, name)
 				r, ok := ethhelpers.RPCClientFromContext(ctx)
 				assert.Nil(r, name)
 				assert.False(ok, name)
@@ -91,28 +79,22 @@ func TestClientFromContext(t *testing.T) {
 				c, ok := ethhelpers.ConfigFromContext(ctx)
 				assert.Equal(ethhelpers.Config{}, c, name)
 				assert.False(ok, name)
-				l, ok := ethhelpers.LimitedClientFromContext(ctx)
-				assert.Nil(l, name)
-				assert.False(ok, name)
 				r, ok := ethhelpers.RPCClientFromContext(ctx)
 				assert.Same(stored, r, name)
 				assert.True(ok, name)
 			},
 		}, {
-			"with simulated backend client",
+			"with simulated backend using ethtesting.SimulatedClient",
 			func(name string) {
-				stored := &backends.SimulatedBackend{}
-				ctx := ethhelpers.ContextWithLimitedClient(context.Background(), stored)
+				stored := ethtesting.NewSimulatedClient(&backends.SimulatedBackend{})
+				ctx := ethhelpers.ContextWithClient(context.Background(), stored)
 
 				e, ok := ethhelpers.ClientFromContext(ctx)
-				assert.Nil(e, name)
-				assert.False(ok, name)
+				assert.Equal(stored, e, name)
+				assert.True(ok, name)
 				c, ok := ethhelpers.ConfigFromContext(ctx)
 				assert.Equal(ethhelpers.Config{}, c, name)
 				assert.False(ok, name)
-				l, ok := ethhelpers.LimitedClientFromContext(ctx)
-				assert.NotNil(l, name)
-				assert.True(ok, name)
 				r, ok := ethhelpers.RPCClientFromContext(ctx)
 				assert.Nil(r, name)
 				assert.False(ok, name)
@@ -125,7 +107,7 @@ func TestClientFromContext(t *testing.T) {
 	}
 }
 
-func TestConfigFromContext(t *testing.T) {
+func TestContext_ConfigFromContext(t *testing.T) {
 	assert := assert.New(t)
 
 	tests := []struct {

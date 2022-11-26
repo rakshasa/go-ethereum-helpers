@@ -61,31 +61,38 @@ func ExampleNewPeriodicBlockNumberTicker() {
 		}
 	}()
 
+	var currentBlock uint64
+
 	for {
 		select {
-		case num := <-ticker.Wait():
-			fmt.Printf("num: %d\n", num)
+		case currentBlock = <-ticker.Wait():
+			fmt.Printf("currentBlock: %d\n", currentBlock)
 
-			if num == 5 {
+			if currentBlock == 5 {
 				time.Sleep(500 * time.Millisecond)
 			}
-			if num < 12 {
+			if currentBlock < 12 {
 				continue
 			}
 
 		case err := <-ticker.Err():
 			fmt.Printf("err: %v\n", err)
+
+			// if check_if_temporary_error {
+			// 	ticker.Reset(currentBlock)
+			// 	continue
+			// }
 		}
 
 		return
 	}
 
 	// Output:
-	// num: 3
-	// num: 5
-	// num: 10
-	// num: 11
-	// num: 13
+	// currentBlock: 3
+	// currentBlock: 5
+	// currentBlock: 10
+	// currentBlock: 11
+	// currentBlock: 13
 }
 
 func ExampleWaitForTransactionReceipt() {

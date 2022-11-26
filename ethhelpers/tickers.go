@@ -9,38 +9,61 @@ import (
 type BlockNumberTicker interface {
 	Wait() <-chan uint64
 	Err() <-chan error
+	Reset(fromBlock uint64)
 	Stop()
 }
 
-type periodicBlockNumberTicker struct {
-	client        BlockNumberReader
-	interruptChan chan struct{}
-	requestChan   chan struct{}
-	resultChan    chan uint64
-	errChan       chan error
+type blockNumberTicker struct {
+	interruptChan chan<- struct{}
+	requestChan   chan<- struct{}
+	resultChan    <-chan uint64
+	errChan       <-chan error
+	reset         func(uint64) blockNumberTicker
 	stop          func()
+}
+
+func (t *blockNumberTicker) Wait() <-chan uint64 {
+	select {
+	case t.interruptChan <- struct{}{}:
+	default:
+	}
+
+	if len(t.requestChan) == 0 {
+		t.requestChan <- struct{}{}
+	}
+
+	return t.resultChan
+}
+
+func (t *blockNumberTicker) Err() <-chan error {
+	return t.errChan
+}
+
+func (t *blockNumberTicker) Reset(fromBlock uint64) {
+	*t = t.reset(fromBlock)
+}
+
+func (t *blockNumberTicker) Stop() {
+	t.stop()
 }
 
 // Add discard duration.
 
 // TODO: Add max block interval and historic iteration options, these should wrap the PBNT Wait channel.
 
+type periodicBlockNumberTicker struct {
+	client        BlockNumberReader
+	interruptChan <-chan struct{}
+	requestChan   <-chan struct{}
+	resultChan    chan<- uint64
+	errChan       chan<- error
+}
+
 func NewPeriodicBlockNumberTicker(ctx context.Context, client BlockNumberReader, fromBlock uint64, interval time.Duration) BlockNumberTicker {
 	ctx, stop := context.WithCancel(ctx)
 
-	// TODO: Add a separate struct for handler and object returned to user.
-	t := &periodicBlockNumberTicker{
-		client:        client,
-		interruptChan: make(chan struct{}),
-		requestChan:   make(chan struct{}, 1),
-		resultChan:    make(chan uint64),
-		errChan:       make(chan error, 1),
-		stop:          stop,
-	}
-
-	go t.start(ctx, fromBlock, interval)
-
-	return t
+	t := resetPeriodicBlockNumberTicker(ctx, stop, client, fromBlock, interval)
+	return &t
 }
 
 func FactoryForPeriodicBlockNumberTicker(client BlockNumberReader, fromBlock uint64, interval time.Duration) func(context.Context) BlockNumberTicker {
@@ -55,16 +78,32 @@ func FactoryForPeriodicBlockNumberTickerWithFromBlock(client BlockNumberReader, 
 	}
 }
 
-func (t *periodicBlockNumberTicker) current(ctx context.Context) (uint64, error) {
-	b, err := t.client.BlockNumber(ctx)
-	if err != nil {
-		return 0, err
-	}
-	if b+1 < b {
-		return 0, fmt.Errorf("block number overflow")
+func resetPeriodicBlockNumberTicker(ctx context.Context, stop func(), client BlockNumberReader, fromBlock uint64, interval time.Duration) blockNumberTicker {
+	interruptChan := make(chan struct{})
+	requestChan := make(chan struct{}, 1)
+	resultChan := make(chan uint64)
+	errChan := make(chan error, 1)
+
+	t := &periodicBlockNumberTicker{
+		client:        client,
+		interruptChan: interruptChan,
+		requestChan:   requestChan,
+		resultChan:    resultChan,
+		errChan:       errChan,
 	}
 
-	return b, nil
+	go t.start(ctx, fromBlock, interval)
+
+	return blockNumberTicker{
+		interruptChan: interruptChan,
+		requestChan:   requestChan,
+		resultChan:    resultChan,
+		errChan:       errChan,
+		reset: func(newFromBlock uint64) blockNumberTicker {
+			return resetPeriodicBlockNumberTicker(ctx, stop, client, newFromBlock, interval)
+		},
+		stop: stop,
+	}
 }
 
 func (t *periodicBlockNumberTicker) start(ctx context.Context, fromBlock uint64, interval time.Duration) {
@@ -83,10 +122,13 @@ func (t *periodicBlockNumberTicker) start(ctx context.Context, fromBlock uint64,
 		currentBlock, err := t.client.BlockNumber(ctx)
 		if err != nil {
 			// TODO: Allow passing custom error handlers.
+			// TODO: Add a way to reset
 			t.errChan <- err
 			return
 		}
-		if currentBlock+1 < currentBlock {
+
+		// Ensure the user doesn't overflow the uint64 block number if incremented twice.
+		if currentBlock+2 < currentBlock {
 			t.errChan <- fmt.Errorf("block number overflow")
 			return
 		}
@@ -150,25 +192,4 @@ func (t *periodicBlockNumberTicker) handle(ctx context.Context, fromBlock *uint6
 			return ctx.Err()
 		}
 	}
-}
-
-func (t *periodicBlockNumberTicker) Wait() <-chan uint64 {
-	select {
-	case t.interruptChan <- struct{}{}:
-	default:
-	}
-
-	if len(t.requestChan) == 0 {
-		t.requestChan <- struct{}{}
-	}
-
-	return t.resultChan
-}
-
-func (t *periodicBlockNumberTicker) Err() <-chan error {
-	return t.errChan
-}
-
-func (t *periodicBlockNumberTicker) Stop() {
-	t.stop()
 }

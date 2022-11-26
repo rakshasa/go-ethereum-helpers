@@ -37,16 +37,15 @@ func ContractFromConfigInContext(ctx context.Context, key interface{}) (Contract
 // Same as ContractFromConfigInContext, except it returns a nil object
 // if not present.
 //
-//   contractHelper, ok := ethhelpers.ContractOrNilFromConfigInContext(ctx, MyContractKey{}).(*MyContract)
-//   if !ok {
-//     return fmt.Errorf("missing my contract in context")
-//   }
+//	contractHelper, ok := ethhelpers.ContractOrNilFromConfigInContext(ctx, MyContractKey{}).(*MyContract)
+//	if !ok {
+//	  return fmt.Errorf("missing my contract in context")
+//	}
 //
-//   contract, err := contractHelper.ContractFromContext(ctx)
-//   if err != nil {
-//     return fmt.Errorf("failed to create my contract: %v", err)
-//   }
-//
+//	contract, err := contractHelper.ContractFromContext(ctx)
+//	if err != nil {
+//	  return fmt.Errorf("failed to create my contract: %v", err)
+//	}
 func ContractOrNilFromConfigInContext(ctx context.Context, key interface{}) Contract {
 	c, _ := ContractFromConfigInContext(ctx, key)
 	return c
@@ -78,15 +77,6 @@ func ContextWithClientsFromRPCClient(ctx context.Context, rpcClient *rpc.Client)
 	return ctx
 }
 
-// ContextWithLimitedClient creates a new context which contains an
-// ethhelpers.LimitedClient.
-//
-// The context will return the client when calling LimitedClientFromContext
-// and other compatible methods.
-func ContextWithLimitedClient(ctx context.Context, client LimitedClient) context.Context {
-	return context.WithValue(ctx, clientContextKey{}, client)
-}
-
 // ContextWithRPCClient creates a new context which contains an RPC client.
 //
 // The context will return the client when calling RPCClientFromContext.
@@ -98,13 +88,6 @@ func ContextWithRPCClient(ctx context.Context, rpcClient *rpc.Client) context.Co
 // ethhelpers.Client from the context, if any.
 func ClientFromContext(ctx context.Context) (Client, bool) {
 	c, ok := ctx.Value(clientContextKey{}).(Client)
-	return c, ok
-}
-
-// LimitedClientFromContext retrieves an interface implementing
-// ethhelpers.LimitedClient from the context, if any.
-func LimitedClientFromContext(ctx context.Context) (LimitedClient, bool) {
-	c, ok := ctx.Value(clientContextKey{}).(LimitedClient)
 	return c, ok
 }
 

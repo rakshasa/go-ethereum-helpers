@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/rakshasa/go-ethereum-helpers/ethhelpers"
 )
 
 type SimulatedAccount struct {
@@ -37,7 +38,7 @@ func (a *SimulatedAccount) NonceAndIncrement() (n uint64) {
 	return
 }
 
-func (a *SimulatedAccount) SendNewTransaction(ctx context.Context, client ChainReaderAndTransactionSender, nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, data []byte) (*types.Transaction, error) {
+func (a *SimulatedAccount) SendNewTransaction(ctx context.Context, client ethhelpers.ChainReaderAndTransactionSender, nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, data []byte) (*types.Transaction, error) {
 	head, _ := client.HeaderByNumber(ctx, nil)
 	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
 
