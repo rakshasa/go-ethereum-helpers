@@ -105,7 +105,7 @@ func TestClientWithMock(t *testing.T) {
 			sim.Backend.Commit()
 
 			ctx := context.Background()
-			client, mock := ethtesting.NewClientWithMock(ethtesting.NewSimulatedClient(sim.Backend))
+			client, mock := ethtesting.NewClientWithMockAndClient(ethtesting.NewSimulatedClient(sim.Backend))
 
 			test.mock(t, testArgs{ctx, sim, client, mock})
 

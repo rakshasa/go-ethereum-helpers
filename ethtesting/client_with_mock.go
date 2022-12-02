@@ -49,7 +49,18 @@ type clientWithMock struct {
 	mock   mock.Mock
 }
 
-func NewClientWithMock(client ethhelpers.Client) (ClientWithMock, *mock.Mock) {
+// NewClientWithMock creates a new client with *testing.Mock.
+func NewClientWithMock() (ClientWithMock, *mock.Mock) {
+	c := &clientWithMock{}
+	return c, &c.mock
+}
+
+// NewClientWithMockAndClient creates a new client with *testing.Mock and an
+// underlying client.
+//
+// Using WithoutMock() as the assigned return value for mocked calls will pass
+// the call to the underlying client.
+func NewClientWithMockAndClient(client ethhelpers.Client) (ClientWithMock, *mock.Mock) {
 	c := &clientWithMock{
 		client: client,
 	}

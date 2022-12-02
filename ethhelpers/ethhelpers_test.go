@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/core"
@@ -62,6 +63,53 @@ func readUint64FromChan(ch <-chan uint64) (uint64, bool) {
 		return r, true
 	default:
 		return 0, false
+	}
+}
+
+func readUint64FromChanWithTimeout(ch <-chan uint64, after time.Duration) (uint64, bool) {
+	select {
+	case r := <-ch:
+		return r, true
+	case <-time.After(after):
+		return 0, false
+	}
+}
+
+func readErrorFromChan(ch <-chan error) (error, bool) {
+	select {
+	case r := <-ch:
+		return r, true
+	default:
+		return nil, false
+	}
+}
+
+func readErrorFromChanWithTimeout(ch <-chan error, after time.Duration) (error, bool) {
+	select {
+	case r := <-ch:
+		return r, true
+	case <-time.After(after):
+		return nil, false
+	}
+}
+
+func emptyUint64Channel(ch <-chan uint64) bool {
+	for {
+		select {
+		case <-ch:
+		default:
+			return true
+		}
+	}
+}
+
+func emptyErrorChannel(ch <-chan error) bool {
+	for {
+		select {
+		case <-ch:
+		default:
+			return true
+		}
 	}
 }
 

@@ -100,7 +100,7 @@ func TestClientWithRetry_RetryIfTemporaryError(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
-			client, mock := ethtesting.NewClientWithMock(nil)
+			client, mock := ethtesting.NewClientWithMock()
 			client = test.client(t, client)
 
 			test.mock(t, testArgs{ctx, client, mock})
