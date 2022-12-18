@@ -26,7 +26,10 @@ func TestClientWithHTTPSubscriptions_SubscribeFilterLogs(t *testing.T) {
 	// TODO: Speed up the test.
 	client := ethhelpers.NewClientWithHTTPSubscriptions(
 		ethtesting.NewSimulatedClient(sim.Backend),
-		ethhelpers.FactoryForPeriodicBlockNumberTickerWithFromBlock(ethtesting.NewSimulatedClient(sim.Backend), time.Second/4),
+
+		func(ctx context.Context, fromBlock uint64) ethhelpers.BlockNumberTicker {
+			return ethhelpers.NewPeriodicBlockNumberTickerFromBlock(ctx, ethtesting.NewSimulatedClient(sim.Backend), time.Second/4, fromBlock)
+		},
 	)
 
 	logChan := make(chan types.Log, 1)

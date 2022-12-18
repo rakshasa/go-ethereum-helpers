@@ -13,7 +13,14 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/rakshasa/go-ethereum-helpers/ethtesting"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
+
+type ClientAndMock struct {
+	ctx    context.Context
+	client ethtesting.ClientWithMock
+	mock   *mock.Mock
+}
 
 func newTestDefaultSimulatedBackend(t *testing.T) (*ethtesting.SimulatedBackendWithAccounts, func()) {
 	commitLogs := ethtesting.PendingLogHandlerForTesting(t, log.Root())
@@ -93,23 +100,39 @@ func readErrorFromChanWithTimeout(ch <-chan error, after time.Duration) (error, 
 	}
 }
 
+func closedErrorChanWithTimeout(ch <-chan error, after time.Duration) bool {
+	select {
+	case _, ok := <-ch:
+		return !ok
+	case <-time.After(after):
+		return false
+	}
+}
+
 func emptyUint64Channel(ch <-chan uint64) bool {
-	for {
-		select {
-		case <-ch:
-		default:
-			return true
-		}
+	select {
+	case <-ch:
+		return false
+	default:
+		return true
+	}
+}
+
+func emptyUint64ChannelWithTimeout(ch <-chan uint64, after time.Duration) bool {
+	select {
+	case <-ch:
+		return false
+	case <-time.After(after):
+		return true
 	}
 }
 
 func emptyErrorChannel(ch <-chan error) bool {
-	for {
-		select {
-		case <-ch:
-		default:
-			return true
-		}
+	select {
+	case <-ch:
+		return false
+	default:
+		return true
 	}
 }
 

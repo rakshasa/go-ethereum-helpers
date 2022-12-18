@@ -21,10 +21,7 @@ type BlockNumberTicker interface {
 	Stop()
 }
 
-//
-// blockNumberTicker: A generic handler for block number tickers.
-//
-
+// blockNumberTicker is a generic handler for block number tickers.
 type blockNumberTicker struct {
 	interrupt      chan<- struct{}
 	request        chan<- struct{}
@@ -59,42 +56,45 @@ func (t *blockNumberTicker) Stop() {
 	t.stop()
 }
 
-type periodicBlockNumberSource struct {
-	client    BlockNumberReader
-	interrupt <-chan struct{}
-	request   <-chan struct{}
-	result    chan<- uint64
-	errors    chan<- error
-}
-
+// TODO: Add discard duration, default to half of interval.
+// TODO: Add max block interval and historic iteration options, these should wrap the PBNT Wait channel.
 // TODO: Make fromBlock explicit, either it is set or we use the first value returned by BlockNumber.
+// TODO: Note and verify that we start the ticker from the next block number.
 
-// NewPeriodicBlockNumberTicker creates a new block number ticker that ticks at a fixed time interval.
-func NewPeriodicBlockNumberTicker(ctx context.Context, client BlockNumberReader, fromBlock uint64, interval time.Duration) BlockNumberTicker {
+// NewPeriodicBlockNumberTicker creates a new block number ticker that
+// ticks at a fixed time interval, starting from the current block number.
+func NewPeriodicBlockNumberTicker(ctx context.Context, client BlockNumberReader, interval time.Duration) BlockNumberTicker {
 	ctx, stop := context.WithCancel(ctx)
-
-	return newPeriodicBlockNumberSource(ctx, stop, client, fromBlock, interval)
+	return newPeriodicBlockNumberTicker(ctx, stop, client, interval, 0)
 }
 
-func FactoryForPeriodicBlockNumberTicker(client BlockNumberReader, fromBlock uint64, interval time.Duration) func(context.Context) BlockNumberTicker {
-	return func(ctx context.Context) BlockNumberTicker {
-		return NewPeriodicBlockNumberTicker(ctx, client, fromBlock, interval)
-	}
+// NewPeriodicBlockNumberTickerFromBlock creates a new block number ticker that
+// ticks at a fixed time interval, starting from the given block number.
+//
+// The ticker continues to make BlockNumber request calls after calling Wait if
+// fromBlock was not reached. Therefor the ticker should be manually stopped
+// and/or not used with fromBlock values that are not imminient.
+func NewPeriodicBlockNumberTickerFromBlock(ctx context.Context, client BlockNumberReader, interval time.Duration, fromBlock uint64) BlockNumberTicker {
+	ctx, stop := context.WithCancel(ctx)
+	return newPeriodicBlockNumberTicker(ctx, stop, client, interval, fromBlock)
 }
 
-func FactoryForPeriodicBlockNumberTickerWithFromBlock(client BlockNumberReader, interval time.Duration) func(context.Context, uint64) BlockNumberTicker {
-	return func(ctx context.Context, fromBlock uint64) BlockNumberTicker {
-		return NewPeriodicBlockNumberTicker(ctx, client, fromBlock, interval)
-	}
+type periodicBlockNumberTickerSource struct {
+	client     BlockNumberReader
+	interrupt  <-chan struct{}
+	request    <-chan struct{}
+	result     chan<- uint64
+	errors     chan<- error
+	windowSize uint64
 }
 
-func newPeriodicBlockNumberSource(ctx context.Context, stop func(), client BlockNumberReader, fromBlock uint64, interval time.Duration) *blockNumberTicker {
+func newPeriodicBlockNumberTicker(ctx context.Context, stop func(), client BlockNumberReader, interval time.Duration, fromBlock uint64) *blockNumberTicker {
 	interrupt := make(chan struct{})
 	request := make(chan struct{}, 1)
 	result := make(chan uint64)
 	errors := make(chan error, 1)
 
-	t := &periodicBlockNumberSource{
+	t := &periodicBlockNumberTickerSource{
 		client:    client,
 		interrupt: interrupt,
 		request:   request,
@@ -102,21 +102,21 @@ func newPeriodicBlockNumberSource(ctx context.Context, stop func(), client Block
 		errors:    errors,
 	}
 
-	go t.start(ctx, fromBlock, interval)
+	go t.start(ctx, interval, fromBlock)
 
 	return &blockNumberTicker{
 		interrupt: interrupt,
 		request:   request,
 		result:    result,
 		errors:    errors,
-		cloneFromBlock: func(newFromBlock uint64) *blockNumberTicker {
-			return newPeriodicBlockNumberSource(ctx, stop, client, newFromBlock, interval)
+		cloneFromBlock: func(fb uint64) *blockNumberTicker {
+			return newPeriodicBlockNumberTicker(ctx, stop, client, interval, fb)
 		},
 		stop: stop,
 	}
 }
 
-func (t *periodicBlockNumberSource) start(ctx context.Context, fromBlock uint64, interval time.Duration) {
+func (t *periodicBlockNumberTickerSource) start(ctx context.Context, interval time.Duration, fromBlock uint64) {
 	defer close(t.errors)
 
 	select {
@@ -148,13 +148,14 @@ func (t *periodicBlockNumberSource) start(ctx context.Context, fromBlock uint64,
 	}
 }
 
-func (t *periodicBlockNumberSource) handle(ctx context.Context, fromBlock *uint64, currentBlock uint64, tickerC <-chan time.Time) error {
+func (t *periodicBlockNumberTickerSource) handle(ctx context.Context, fromBlock *uint64, currentBlock uint64, tickerC <-chan time.Time) error {
 	var requestC <-chan struct{}
 	var resultC chan<- uint64
 
 	if currentBlock >= *fromBlock {
 		resultC = t.result
 
+		// Make sure the request channel is empty before we attempt to send the result.
 		select {
 		case <-t.request:
 		default:
@@ -169,7 +170,7 @@ func (t *periodicBlockNumberSource) handle(ctx context.Context, fromBlock *uint6
 		select {
 		case <-t.interrupt:
 			// Avoid a race-condition where we are in a new tick and have a new
-			// incoming request, but there's still an unsent result available.
+			// incoming request, but there's still unsent result available.
 			if resultC != nil && tickerC == nil {
 				// TODO: Only request again if +2 ticks or duration.
 				resultC = nil
@@ -184,20 +185,18 @@ func (t *periodicBlockNumberSource) handle(ctx context.Context, fromBlock *uint6
 			continue
 
 		case <-requestC:
-			// We got a request and the ticker was timed out, so get a new block number.
 			return nil
 
 		case <-tickerC:
-			if resultC == nil {
-				// Periodic ticker triggered, get a new block number.
-				return nil
+			if resultC != nil {
+				// Last block number wasn't retrieved, so ignore the periodic ticker
+				// and wait for a request before resuming.
+				tickerC = nil
+				requestC = t.request
+				continue
 			}
 
-			// Last block number wasn't retrieved, so ignore the periodic ticker
-			// and wait for a request before resuming.
-			tickerC = nil
-			requestC = t.request
-			continue
+			return nil
 
 		case <-ctx.Done():
 			return ctx.Err()
