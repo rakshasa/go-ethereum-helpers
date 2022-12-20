@@ -57,8 +57,8 @@ func newTestDefaultSimulatedBackendWithCallableContract(t *testing.T) (*ethtesti
 
 func readLogFromChan(ch <-chan types.Log) (types.Log, bool) {
 	select {
-	case r := <-ch:
-		return r, true
+	case r, ok := <-ch:
+		return r, ok
 	default:
 		return types.Log{}, false
 	}
@@ -66,8 +66,8 @@ func readLogFromChan(ch <-chan types.Log) (types.Log, bool) {
 
 func readUint64FromChan(ch <-chan uint64) (uint64, bool) {
 	select {
-	case r := <-ch:
-		return r, true
+	case r, ok := <-ch:
+		return r, ok
 	default:
 		return 0, false
 	}
@@ -75,8 +75,8 @@ func readUint64FromChan(ch <-chan uint64) (uint64, bool) {
 
 func readUint64FromChanWithTimeout(ch <-chan uint64, after time.Duration) (uint64, bool) {
 	select {
-	case r := <-ch:
-		return r, true
+	case r, ok := <-ch:
+		return r, ok
 	case <-time.After(after):
 		return 0, false
 	}
@@ -85,6 +85,9 @@ func readUint64FromChanWithTimeout(ch <-chan uint64, after time.Duration) (uint6
 func readErrorFromChan(ch <-chan error) (error, bool) {
 	select {
 	case r := <-ch:
+		if r == nil {
+			return nil, false
+		}
 		return r, true
 	default:
 		return nil, false
@@ -94,6 +97,9 @@ func readErrorFromChan(ch <-chan error) (error, bool) {
 func readErrorFromChanWithTimeout(ch <-chan error, after time.Duration) (error, bool) {
 	select {
 	case r := <-ch:
+		if r == nil {
+			return nil, false
+		}
 		return r, true
 	case <-time.After(after):
 		return nil, false
