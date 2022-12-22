@@ -9,6 +9,9 @@ import (
 // BlockNumberTicker is a ticker that emits block numbers.
 type BlockNumberTicker interface {
 	// Wait returns a channel that emits block numbers.
+	//
+	// The returned channel is only guaranteed to return a result once, reading
+	// multiple times has undefined behavior.
 	Wait() <-chan uint64
 
 	// Err returns a channel that emits errors that occur while waiting for block numbers.
@@ -32,6 +35,9 @@ type blockNumberTicker struct {
 }
 
 func (t *blockNumberTicker) Wait() <-chan uint64 {
+	// TODO: Add a channel to indicate that there's an old result available, and
+	// it should be discarded.
+
 	select {
 	case t.interrupt <- struct{}{}:
 	default:
@@ -58,14 +64,12 @@ func (t *blockNumberTicker) Stop() {
 
 // TODO: Add discard duration, default to half of interval.
 // TODO: Add max block interval and historic iteration options, these should wrap the PBNT Wait channel.
-// TODO: Make fromBlock explicit, either it is set or we use the first value returned by BlockNumber.
-// TODO: Note and verify that we start the ticker from the next block number.
 
 // NewPeriodicBlockNumberTicker creates a new block number ticker that
 // ticks at a fixed time interval, starting from the current block number.
 func NewPeriodicBlockNumberTicker(ctx context.Context, client BlockNumberReader, interval time.Duration) BlockNumberTicker {
 	ctx, stop := context.WithCancel(ctx)
-	return newPeriodicBlockNumberTicker(ctx, stop, client, interval, 0)
+	return newPeriodicBlockNumberTicker(ctx, stop, client, interval, nil)
 }
 
 // NewPeriodicBlockNumberTickerFromBlock creates a new block number ticker that
@@ -76,7 +80,7 @@ func NewPeriodicBlockNumberTicker(ctx context.Context, client BlockNumberReader,
 // and/or not used with fromBlock values that are not imminient.
 func NewPeriodicBlockNumberTickerFromBlock(ctx context.Context, client BlockNumberReader, interval time.Duration, fromBlock uint64) BlockNumberTicker {
 	ctx, stop := context.WithCancel(ctx)
-	return newPeriodicBlockNumberTicker(ctx, stop, client, interval, fromBlock)
+	return newPeriodicBlockNumberTicker(ctx, stop, client, interval, &fromBlock)
 }
 
 type periodicBlockNumberTickerSource struct {
@@ -88,7 +92,7 @@ type periodicBlockNumberTickerSource struct {
 	windowSize uint64
 }
 
-func newPeriodicBlockNumberTicker(ctx context.Context, stop func(), client BlockNumberReader, interval time.Duration, fromBlock uint64) *blockNumberTicker {
+func newPeriodicBlockNumberTicker(ctx context.Context, stop func(), client BlockNumberReader, interval time.Duration, fromBlock *uint64) *blockNumberTicker {
 	interrupt := make(chan struct{})
 	request := make(chan struct{}, 1)
 	result := make(chan uint64)
@@ -110,13 +114,13 @@ func newPeriodicBlockNumberTicker(ctx context.Context, stop func(), client Block
 		result:    result,
 		errors:    errors,
 		cloneFromBlock: func(fb uint64) *blockNumberTicker {
-			return newPeriodicBlockNumberTicker(ctx, stop, client, interval, fb)
+			return newPeriodicBlockNumberTicker(ctx, stop, client, interval, &fb)
 		},
 		stop: stop,
 	}
 }
 
-func (t *periodicBlockNumberTickerSource) start(ctx context.Context, interval time.Duration, fromBlock uint64) {
+func (t *periodicBlockNumberTickerSource) start(ctx context.Context, interval time.Duration, initialFromBlock *uint64) {
 	defer close(t.errors)
 
 	select {
@@ -128,31 +132,46 @@ func (t *periodicBlockNumberTickerSource) start(ctx context.Context, interval ti
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	for {
-		currentBlock, err := t.client.BlockNumber(ctx)
-		if err != nil {
-			t.errors <- err
-			return
-		}
+	currentBlock, err := t.client.BlockNumber(ctx)
+	if err != nil {
+		t.errors <- err
+		return
+	}
 
+	var fromBlock uint64
+
+	if initialFromBlock == nil {
+		fromBlock = currentBlock
+	} else {
+		fromBlock = *initialFromBlock
+	}
+
+	for {
 		// Ensure the user doesn't overflow the uint64 block number if incremented twice.
 		if currentBlock+2 < currentBlock {
 			t.errors <- fmt.Errorf("block number overflow")
 			return
 		}
 
-		if err := t.handle(ctx, &fromBlock, currentBlock, ticker.C); err != nil {
+		if fromBlock, err = t.handle(ctx, fromBlock, currentBlock, ticker.C); err != nil {
+			t.errors <- err
+			return
+		}
+
+		if currentBlock, err = t.client.BlockNumber(ctx); err != nil {
 			t.errors <- err
 			return
 		}
 	}
 }
 
-func (t *periodicBlockNumberTickerSource) handle(ctx context.Context, fromBlock *uint64, currentBlock uint64, tickerC <-chan time.Time) error {
+// TODO: Separate into two functions for requestC and tickerC.
+
+func (t *periodicBlockNumberTickerSource) handle(ctx context.Context, fromBlock, currentBlock uint64, tickerC <-chan time.Time) (uint64, error) {
 	var requestC <-chan struct{}
 	var resultC chan<- uint64
 
-	if currentBlock >= *fromBlock {
+	if currentBlock >= fromBlock {
 		resultC = t.result
 
 		// Make sure the request channel is empty before we attempt to send the result.
@@ -164,7 +183,7 @@ func (t *periodicBlockNumberTickerSource) handle(ctx context.Context, fromBlock 
 
 	for {
 		if requestC != nil && tickerC != nil {
-			return fmt.Errorf("both the request and ticker channels are active")
+			return 0, fmt.Errorf("both the request and ticker channels are active")
 		}
 
 		select {
@@ -178,14 +197,14 @@ func (t *periodicBlockNumberTickerSource) handle(ctx context.Context, fromBlock 
 			continue
 
 		case resultC <- currentBlock:
-			*fromBlock = currentBlock + 1
+			fromBlock = currentBlock + 1
 
 			// TODO: Do we keep consistent ticker time, or do we reset? Should be an option.
 			resultC = nil
 			continue
 
 		case <-requestC:
-			return nil
+			return fromBlock, nil
 
 		case <-tickerC:
 			if resultC != nil {
@@ -196,10 +215,10 @@ func (t *periodicBlockNumberTickerSource) handle(ctx context.Context, fromBlock 
 				continue
 			}
 
-			return nil
+			return fromBlock, nil
 
 		case <-ctx.Done():
-			return ctx.Err()
+			return 0, ctx.Err()
 		}
 	}
 }
