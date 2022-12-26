@@ -114,6 +114,8 @@ func TestUtils_BigInt(t *testing.T) {
 		},
 	}
 
+	t.Parallel()
+
 	for idx, test := range tests {
 		test.fn(fmt.Sprintf("%d: %s", idx, test.name))
 	}

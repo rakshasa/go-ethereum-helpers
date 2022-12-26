@@ -15,13 +15,6 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func unknownErrorWithAssertFail(t *testing.T) func(context.Context, error) error {
-	return func(ctx context.Context, err error) error {
-		assert.Failf(t, "should not be called", "%v", err)
-		return context.Canceled
-	}
-}
-
 func TestClientWithRetry_RetryIfTemporaryError(t *testing.T) {
 	type testArgs struct {
 		ctx    context.Context
@@ -29,19 +22,14 @@ func TestClientWithRetry_RetryIfTemporaryError(t *testing.T) {
 		mock   *mock.Mock
 	}
 
-	defaultClient := func(t *testing.T, c ethhelpers.ClientWithRetry) ethhelpers.ClientWithRetry {
-		return ethhelpers.NewClientWithRetry(c, ethhelpers.RetryIfTemporaryError(unknownErrorWithAssertFail(t)))
-	}
-
 	tests := []struct {
 		name   string
 		client func(*testing.T, ethhelpers.ClientWithRetry) ethhelpers.ClientWithRetry
-		mock   func(*testing.T, testArgs)
+		fn     func(*testing.T, testArgs)
 	}{
 		{
-			name:   "BlockNumber immediately returns",
-			client: defaultClient,
-			mock: func(t *testing.T, args testArgs) {
+			name: "BlockNumber immediately returns",
+			fn: func(t *testing.T, args testArgs) {
 				args.mock.On("BlockNumber", args.ctx).Return(uint64(123), nil).Once()
 
 				blockNumber, err := args.client.BlockNumber(args.ctx)
@@ -49,9 +37,8 @@ func TestClientWithRetry_RetryIfTemporaryError(t *testing.T) {
 				assert.Equal(t, uint64(123), blockNumber)
 			},
 		}, {
-			name:   "BlockNumber returns after an initial connection timeout",
-			client: defaultClient,
-			mock: func(t *testing.T, args testArgs) {
+			name: "BlockNumber returns after an initial connection timeout",
+			fn: func(t *testing.T, args testArgs) {
 				args.mock.On("BlockNumber", args.ctx).Return(uint64(0), syscall.ECONNRESET).Once().After(10 * time.Millisecond)
 				args.mock.On("BlockNumber", args.ctx).Return(uint64(123), nil).Once().After(10 * time.Millisecond)
 
@@ -60,9 +47,8 @@ func TestClientWithRetry_RetryIfTemporaryError(t *testing.T) {
 				assert.Equal(t, uint64(123), blockNumber)
 			},
 		}, {
-			name:   "BlockNumber returns after context is canceled",
-			client: defaultClient,
-			mock: func(t *testing.T, args testArgs) {
+			name: "BlockNumber returns after context is canceled",
+			fn: func(t *testing.T, args testArgs) {
 				args.mock.On("BlockNumber", args.ctx).Return(uint64(0), context.Canceled).Once().After(10 * time.Millisecond)
 
 				blockNumber, err := args.client.BlockNumber(args.ctx)
@@ -70,9 +56,8 @@ func TestClientWithRetry_RetryIfTemporaryError(t *testing.T) {
 				assert.Equal(t, uint64(0), blockNumber)
 			},
 		}, {
-			name:   "BlockNumber returns after context is deadline exceeded",
-			client: defaultClient,
-			mock: func(t *testing.T, args testArgs) {
+			name: "BlockNumber returns after context is deadline exceeded",
+			fn: func(t *testing.T, args testArgs) {
 				args.mock.On("BlockNumber", args.ctx).Return(uint64(0), context.DeadlineExceeded).Once().After(10 * time.Millisecond)
 
 				blockNumber, err := args.client.BlockNumber(args.ctx)
@@ -80,9 +65,8 @@ func TestClientWithRetry_RetryIfTemporaryError(t *testing.T) {
 				assert.Equal(t, uint64(0), blockNumber)
 			},
 		}, {
-			name:   "FilterLogs immediately returns",
-			client: defaultClient,
-			mock: func(t *testing.T, args testArgs) {
+			name: "FilterLogs immediately returns",
+			fn: func(t *testing.T, args testArgs) {
 				q := ethereum.FilterQuery{
 					FromBlock: big.NewInt(1),
 				}
@@ -99,13 +83,18 @@ func TestClientWithRetry_RetryIfTemporaryError(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx := context.Background()
-			client, mock := ethtesting.NewClientWithMock()
-			client = test.client(t, client)
+			client := ethtesting.NewClientWithMock()
 
-			test.mock(t, testArgs{ctx, client, mock})
+			test.fn(t, testArgs{
+				ctx,
+				ethhelpers.NewClientWithRetry(client, ethhelpers.RetryIfTemporaryError(unknownErrorWithAssertFail(t))),
+				client.Mock(),
+			})
 
-			mock.AssertExpectations(t)
+			client.Mock().AssertExpectations(t)
 		})
 	}
 }

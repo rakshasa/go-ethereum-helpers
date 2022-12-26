@@ -15,6 +15,8 @@ import (
 )
 
 func TestClientWithHTTPSubscriptions_SubscribeFilterLogs(t *testing.T) {
+	t.Parallel()
+
 	assert := assert.New(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)

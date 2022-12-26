@@ -14,6 +14,8 @@ import (
 )
 
 func TestSimulatedBackendWithAccounts(t *testing.T) {
+	t.Parallel()
+
 	commit := ethtesting.PendingLogHandlerForTesting(t, log.Root())
 	defer commit()
 

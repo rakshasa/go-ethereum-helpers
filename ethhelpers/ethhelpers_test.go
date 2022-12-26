@@ -153,3 +153,10 @@ func sendTestTransaction(ctx context.Context, sim *ethtesting.SimulatedBackendWi
 		nil,
 	)
 }
+
+func unknownErrorWithAssertFail(t *testing.T) func(context.Context, error) error {
+	return func(ctx context.Context, err error) error {
+		assert.Failf(t, "should not be called", "%v", err)
+		return context.Canceled
+	}
+}

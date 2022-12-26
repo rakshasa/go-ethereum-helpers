@@ -14,6 +14,8 @@ import (
 )
 
 func TestWaitForTransactionReceipt(t *testing.T) {
+	t.Parallel()
+
 	assert := assert.New(t)
 
 	sim, closeSim := newTestDefaultSimulatedBackend(t)
@@ -64,6 +66,8 @@ func TestWaitForTransactionReceipt(t *testing.T) {
 
 // TODO: Add a tester that uses a mock wait funcion.
 func TestWaitTransactionReceipts(t *testing.T) {
+	t.Parallel()
+
 	assert := assert.New(t)
 
 	sim, closeSim := newTestDefaultSimulatedBackend(t)

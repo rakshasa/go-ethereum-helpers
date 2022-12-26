@@ -102,6 +102,8 @@ func TestContext_ClientFromContext(t *testing.T) {
 		},
 	}
 
+	t.Parallel()
+
 	for idx, test := range tests {
 		test.fn(fmt.Sprintf("%d: %s", idx, test.name))
 	}
@@ -186,6 +188,8 @@ func TestContext_ConfigFromContext(t *testing.T) {
 			},
 		},
 	}
+
+	t.Parallel()
 
 	for idx, test := range tests {
 		test.fn(fmt.Sprintf("%d: %s", idx, test.name))

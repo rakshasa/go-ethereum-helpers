@@ -23,6 +23,8 @@ type tickersOptions struct {
 	emptyResults bool
 }
 
+// TODO: Remove ClientAndMock.
+
 // TODO: Move prefix and fromBlock to options.
 
 func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []blockNumberTickerTest {
@@ -348,12 +350,12 @@ func TestTickers_NewPeriodicBlockNumberTicker(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			client, mock := ethtesting.NewClientWithMock()
+			client := ethtesting.NewClientWithMock()
 
 			ticker := ethhelpers.NewPeriodicBlockNumberTicker(ctx, client, 100*time.Millisecond)
 			defer ticker.Stop()
 
-			test.fn(t, ClientAndMock{ctx, client, mock}, ticker)
+			test.fn(t, ClientAndMock{ctx, client, client.Mock()}, ticker)
 		})
 	}
 }
@@ -378,12 +380,12 @@ func TestTickers_NewPeriodicBlockNumberTickerFromBlock_fromBlock_0(t *testing.T)
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			client, mock := ethtesting.NewClientWithMock()
+			client := ethtesting.NewClientWithMock()
 
 			ticker := ethhelpers.NewPeriodicBlockNumberTickerFromBlock(ctx, client, 100*time.Millisecond, 0)
 			defer ticker.Stop()
 
-			test.fn(t, ClientAndMock{ctx, client, mock}, ticker)
+			test.fn(t, ClientAndMock{ctx, client, client.Mock()}, ticker)
 		})
 	}
 }
@@ -410,12 +412,12 @@ func TestTickers_NewPeriodicBlockNumberTickerFromBlock_fromBlock_100000(t *testi
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			client, mock := ethtesting.NewClientWithMock()
+			client := ethtesting.NewClientWithMock()
 
 			ticker := ethhelpers.NewPeriodicBlockNumberTickerFromBlock(ctx, client, 100*time.Millisecond, 100000)
 			defer ticker.Stop()
 
-			test.fn(t, ClientAndMock{ctx, client, mock}, ticker)
+			test.fn(t, ClientAndMock{ctx, client, client.Mock()}, ticker)
 		})
 	}
 }
