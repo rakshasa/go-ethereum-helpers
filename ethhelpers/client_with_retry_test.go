@@ -18,14 +18,13 @@ import (
 func TestClientWithRetry_RetryIfTemporaryError(t *testing.T) {
 	type testArgs struct {
 		ctx    context.Context
-		client ethhelpers.ClientWithRetry
+		client ethhelpers.Client
 		mock   *mock.Mock
 	}
 
 	tests := []struct {
-		name   string
-		client func(*testing.T, ethhelpers.ClientWithRetry) ethhelpers.ClientWithRetry
-		fn     func(*testing.T, testArgs)
+		name string
+		fn   func(*testing.T, testArgs)
 	}{
 		{
 			name: "BlockNumber immediately returns",

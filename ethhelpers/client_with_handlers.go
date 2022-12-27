@@ -32,16 +32,11 @@ type clientWithHandlers struct {
 	defaultHandler func(context.Context, ClientCaller) error
 }
 
-// TODO: Temporary.
-type ClientWithHandlers interface {
-	BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error)
-}
-
 // NewClientWithHandlers creates a new client with custom handlers.
 //
 // The handlers cannot modify the content of the arguments or results, except by
 // overriding the error.
-func NewClientWithDefaultHandler(defaultHandler func(context.Context, ClientCaller) error) ClientWithHandlers {
+func NewClientWithDefaultHandler(defaultHandler func(context.Context, ClientCaller) error) Client {
 	return &clientWithHandlers{
 		defaultHandler: defaultHandler,
 	}

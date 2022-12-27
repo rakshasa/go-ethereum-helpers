@@ -7,53 +7,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-// ClientWithRetry is a wrapper around the ethclient.Client that retries failed requests.
-type ClientWithRetry interface {
-	BlockNumber(ctx context.Context) (uint64, error)
-	FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]types.Log, error)
-	SubscribeFilterLogs(ctx context.Context, q ethereum.FilterQuery, ch chan<- types.Log) (ethereum.Subscription, error)
-}
-
-type clientWithRetry struct {
-	client       ClientWithRetry
-	errorHandler func(context.Context, func(context.Context) error) error
-}
-
-func NewClientWithRetry(client ClientWithRetry, errorHandler func(context.Context, func(context.Context) error) error) ClientWithRetry {
-	return &clientWithRetry{
-		client:       client,
-		errorHandler: errorHandler,
-	}
-}
-
-func (c *clientWithRetry) BlockNumber(ctx context.Context) (r uint64, e error) {
-	e = c.errorHandler(ctx, func(context.Context) (err error) {
-		r, err = c.client.BlockNumber(ctx)
-		return
+func NewClientWithRetry(client Client, errorHandler func(context.Context, func(context.Context) error) error) Client {
+	return NewClientWithDefaultHandler(func(ctx context.Context, caller ClientCaller) error {
+		return errorHandler(ctx, func(ctx context.Context) error {
+			return caller.Call(ctx, client)
+		})
 	})
-	return
-}
-
-func (c *clientWithRetry) FilterLogs(ctx context.Context, q ethereum.FilterQuery) (r []types.Log, e error) {
-	e = c.errorHandler(ctx, func(context.Context) (err error) {
-		r, err = c.client.FilterLogs(ctx, q)
-		return
-	})
-	return
-}
-
-// add method to client for SubscribeFilterlogs
-func (c *clientWithRetry) SubscribeFilterLogs(ctx context.Context, q ethereum.FilterQuery, ch chan<- types.Log) (sub ethereum.Subscription, e error) {
-	e = c.errorHandler(ctx, func(context.Context) (err error) {
-		sub, err = c.client.SubscribeFilterLogs(ctx, q, ch)
-		return
-	})
-	return
 }
 
 // TODO: Add retry options struct.

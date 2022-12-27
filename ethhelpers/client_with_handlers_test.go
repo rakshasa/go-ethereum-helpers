@@ -16,7 +16,7 @@ import (
 func TestClientWithDefaultHandler(t *testing.T) {
 	type testArgs struct {
 		ctx    context.Context
-		client ethhelpers.ClientWithHandlers
+		client ethhelpers.Client
 		mock   *mock.Mock
 	}
 
