@@ -13,14 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/rakshasa/go-ethereum-helpers/ethtesting"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
-
-type ClientAndMock struct {
-	ctx    context.Context
-	client ethtesting.ClientWithMock
-	mock   *mock.Mock
-}
 
 func newTestDefaultSimulatedBackend(t *testing.T) (*ethtesting.SimulatedBackendWithAccounts, func()) {
 	commitLogs := ethtesting.PendingLogHandlerForTesting(t, log.Root())
