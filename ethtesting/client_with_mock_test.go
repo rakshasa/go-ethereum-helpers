@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/rakshasa/go-ethereum-helpers/ethtesting"
 	"github.com/stretchr/testify/assert"
@@ -19,95 +19,156 @@ func (m *mockSubscription) Unsubscribe()      {}
 func (m *mockSubscription) Err() <-chan error { return nil }
 
 func TestClientWithMock(t *testing.T) {
-	type testArgs struct {
+	type testInfo struct {
+		name   string
 		ctx    context.Context
 		sim    *ethtesting.SimulatedBackendWithAccounts
 		client ethtesting.ClientWithMock
 	}
 
+	type testCall1 struct {
+		fn                func(ctx context.Context) (interface{}, error)
+		args              []interface{}
+		mockResult        interface{}
+		defaultResult     interface{}
+		defaultIsNil      bool
+		passthroughResult interface{}
+		passthroughNotNil bool
+		passthroughError  bool
+	}
+
+	call1 := func(t *testing.T, info testInfo, call testCall1) {
+		info.client.Mock().On(info.name, append([]interface{}{info.ctx}, call.args...)...).Return(call.mockResult, nil).Once()
+		r, err := call.fn(info.ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, call.mockResult, r)
+
+		info.client.Mock().On(info.name, append([]interface{}{info.ctx}, call.args...)...).Return(call.defaultResult, fmt.Errorf("mocked error")).Once()
+		r, err = call.fn(info.ctx)
+		assert.Error(t, err)
+		if call.defaultIsNil {
+			assert.Nil(t, r)
+		} else {
+			assert.Equal(t, call.defaultResult, r)
+		}
+
+		info.client.Mock().On(info.name, append([]interface{}{info.ctx}, call.args...)...).Return(nil, fmt.Errorf("mocked error")).Once()
+		r, err = call.fn(info.ctx)
+		assert.Error(t, err)
+		if call.defaultIsNil {
+			assert.Nil(t, r)
+		} else {
+			assert.Equal(t, call.defaultResult, r)
+		}
+
+		info.client.Mock().On(info.name, append([]interface{}{info.ctx}, call.args...)...).Return(ethtesting.PassthroughMockCall()).Once()
+		r, err = call.fn(info.ctx)
+		if call.passthroughError {
+			assert.Error(t, err)
+		} else {
+			assert.NoError(t, err)
+		}
+		if call.passthroughNotNil {
+			assert.NotNil(t, r)
+		} else {
+			assert.Equal(t, call.passthroughResult, r)
+		}
+
+		canceledCtx, cancel := context.WithCancel(info.ctx)
+		info.client.Mock().On(info.name, append([]interface{}{canceledCtx}, call.args...)...).Return(ethtesting.CanceledMockCall()).Once()
+		cancel()
+		r, err = call.fn(canceledCtx)
+		assert.Error(t, err)
+		if call.defaultIsNil {
+			assert.Nil(t, r)
+		} else {
+			assert.Equal(t, call.defaultResult, r)
+		}
+	}
+
 	tests := []struct {
 		name string
-		call func(*testing.T, testArgs)
+		call func(*testing.T, testInfo)
 	}{
 		{
+			name: "BlockByHash",
+			call: func(t *testing.T, info testInfo) {
+				call1(t, info, testCall1{
+					fn: func(ctx context.Context) (interface{}, error) {
+						return info.client.BlockByHash(ctx, common.HexToHash("0x1234"))
+					},
+					args:              []interface{}{common.HexToHash("0x1234")},
+					mockResult:        &types.Block{},
+					defaultIsNil:      true,
+					passthroughResult: (*types.Block)(nil),
+					passthroughError:  true,
+				})
+			},
+		}, {
 			name: "BlockNumber",
-			call: func(t *testing.T, args testArgs) {
-				args.client.Mock().On("BlockNumber", args.ctx).Return(uint64(123), fmt.Errorf("mocked error")).Once()
-				args.client.Mock().On("BlockNumber", args.ctx).Return(ethtesting.WithoutMock()).Once()
-
-				blockNumber, err := args.client.BlockNumber(args.ctx)
-				assert.Error(t, err)
-				assert.Equal(t, uint64(123), blockNumber)
-
-				blockNumber, err = args.client.BlockNumber(args.ctx)
-				assert.NoError(t, err)
-				assert.Equal(t, uint64(1), blockNumber)
+			call: func(t *testing.T, info testInfo) {
+				call1(t, info, testCall1{
+					fn: func(ctx context.Context) (interface{}, error) {
+						return info.client.BlockNumber(ctx)
+					},
+					args:              []interface{}{},
+					mockResult:        uint64(123),
+					defaultResult:     uint64(0),
+					passthroughResult: uint64(1),
+					passthroughError:  false,
+				})
 			},
 		}, {
 			name: "FilterLogs",
-			call: func(t *testing.T, args testArgs) {
-				q := ethereum.FilterQuery{
-					FromBlock: big.NewInt(1),
-				}
-				fl := []types.Log{types.Log{}}
-
-				args.client.Mock().On("FilterLogs", args.ctx, q).Return(fl, fmt.Errorf("mocked error")).Once()
-				args.client.Mock().On("FilterLogs", args.ctx, q).Return(ethtesting.WithoutMock()).Once()
-
-				logs, err := args.client.FilterLogs(args.ctx, q)
-				assert.Error(t, err)
-				assert.Equal(t, fl, logs)
-
-				logs, err = args.client.FilterLogs(args.ctx, q)
-				assert.NoError(t, err)
-				assert.Equal(t, []types.Log{}, logs)
+			call: func(t *testing.T, info testInfo) {
+				call1(t, info, testCall1{
+					fn: func(ctx context.Context) (interface{}, error) {
+						return info.client.FilterLogs(ctx, ethereum.FilterQuery{FromBlock: big.NewInt(1)})
+					},
+					args:              []interface{}{ethereum.FilterQuery{FromBlock: big.NewInt(1)}},
+					mockResult:        []types.Log{types.Log{}},
+					defaultIsNil:      true,
+					passthroughResult: []types.Log{},
+					passthroughError:  false,
+				})
 			},
 		}, {
 			name: "SubscribeFilterLogs",
-			call: func(t *testing.T, args testArgs) {
-				q := ethereum.FilterQuery{
-					FromBlock: big.NewInt(1),
-				}
+			call: func(t *testing.T, info testInfo) {
 				ch := make(chan types.Log)
-				expectedSub := &mockSubscription{}
 
-				args.client.Mock().On("SubscribeFilterLogs", args.ctx, q, (chan<- types.Log)(ch)).Return(expectedSub, fmt.Errorf("mocked error")).Once()
-				args.client.Mock().On("SubscribeFilterLogs", args.ctx, q, (chan<- types.Log)(ch)).Return(ethtesting.WithoutMock()).Once()
-
-				sub, err := args.client.SubscribeFilterLogs(args.ctx, q, ch)
-				assert.Error(t, err)
-				assert.Equal(t, expectedSub, sub)
-
-				sub, err = args.client.SubscribeFilterLogs(args.ctx, q, ch)
-				assert.NoError(t, err)
-				assert.NotNil(t, sub)
+				call1(t, info, testCall1{
+					fn: func(ctx context.Context) (interface{}, error) {
+						return info.client.SubscribeFilterLogs(ctx, ethereum.FilterQuery{FromBlock: big.NewInt(1)}, ch)
+					},
+					args:              []interface{}{ethereum.FilterQuery{FromBlock: big.NewInt(1)}, (chan<- types.Log)(ch)},
+					mockResult:        &mockSubscription{},
+					defaultIsNil:      true,
+					passthroughError:  false,
+					passthroughNotNil: true,
+				})
 			},
 		},
 	}
 
+	// SendTransaction
+
 	for _, test := range tests {
+		test := test
+
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			sim := ethtesting.NewSimulatedBackendWithAccounts(
-				ethtesting.GenesisAccountWithPrivateKey{
-					PrivateKey: ethtesting.MockPrivateKey1,
-					GenesisAccount: core.GenesisAccount{
-						Balance: big.NewInt(10_000_000_000_000_000),
-					},
-				},
-				ethtesting.GenesisAccountWithPrivateKey{
-					PrivateKey: ethtesting.MockPrivateKey2,
-				},
-			)
-			defer sim.Backend.Close()
+			sim, close := newDefaultSimulatedBackend(t)
+			defer close()
 
 			sim.Backend.Commit()
 
 			ctx := context.Background()
 			client := ethtesting.NewClientWithMockAndClient(ethtesting.NewSimulatedClient(sim.Backend))
+			client.Test(t)
 
-			test.call(t, testArgs{ctx, sim, client})
+			test.call(t, testInfo{test.name, ctx, sim, client})
 
 			client.Mock().AssertExpectations(t)
 		})

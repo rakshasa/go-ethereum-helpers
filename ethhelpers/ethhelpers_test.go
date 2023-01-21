@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func newTestDefaultSimulatedBackend(t *testing.T) (*ethtesting.SimulatedBackendWithAccounts, func()) {
+func newDefaultSimulatedBackend(t *testing.T) (*ethtesting.SimulatedBackendWithAccounts, func()) {
 	commitLogs := ethtesting.PendingLogHandlerForTesting(t, log.Root())
 
 	sim := ethtesting.NewSimulatedBackendWithAccounts(
@@ -39,8 +39,8 @@ func newTestDefaultSimulatedBackend(t *testing.T) (*ethtesting.SimulatedBackendW
 	}
 }
 
-func newTestDefaultSimulatedBackendWithCallableContract(t *testing.T) (*ethtesting.SimulatedBackendWithAccounts, *bind.BoundContract, func()) {
-	sim, cancel := newTestDefaultSimulatedBackend(t)
+func newDefaultSimulatedBackendWithCallableContract(t *testing.T) (*ethtesting.SimulatedBackendWithAccounts, *bind.BoundContract, func()) {
+	sim, cancel := newDefaultSimulatedBackend(t)
 
 	contract, err := sim.GenerateCallableContract()
 	assert.NoError(t, err)

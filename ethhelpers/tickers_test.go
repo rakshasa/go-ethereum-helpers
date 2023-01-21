@@ -27,12 +27,17 @@ type tickersOptions struct {
 
 // !!! test for big jump.
 // stresstest
+// use current time as fake timestamp for normal requests
+// TODO: Make delta configurable.
 
 func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []blockNumberTickerTest {
 	prefix := fmt.Sprintf("fromBlock=%d", options.fromBlock)
 
 	if options.emptyResults {
 		prefix += ",emptyResults"
+	}
+	if options.withTimestamp {
+		prefix += ",withTimestamp"
 	}
 
 	callWait := func(ticker ethhelpers.BlockNumberTicker) interface{} {
@@ -44,20 +49,40 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 	}
 
 	emptyResult := func(t *testing.T, c interface{}) {
-		if ch, ok := c.(<-chan uint64); assert.True(t, ok) {
-			select {
-			case <-ch:
-				t.Error("unexpected result")
-			default:
+		if !options.withTimestamp {
+			if ch, ok := c.(<-chan uint64); assert.True(t, ok) {
+				select {
+				case <-ch:
+					t.Error("unexpected result")
+				default:
+				}
+			}
+		} else {
+			if ch, ok := c.(<-chan ethhelpers.BlockNumberWithTimestamp); assert.True(t, ok) {
+				select {
+				case <-ch:
+					t.Error("unexpected result")
+				default:
+				}
 			}
 		}
 	}
 	emptyResultWithTimeout := func(t *testing.T, c interface{}, timeout time.Duration) {
-		if ch, ok := c.(<-chan uint64); assert.True(t, ok) {
-			select {
-			case <-ch:
-				t.Error("unexpected result")
-			case <-time.After(timeout):
+		if !options.withTimestamp {
+			if ch, ok := c.(<-chan uint64); assert.True(t, ok) {
+				select {
+				case <-ch:
+					t.Error("unexpected result")
+				case <-time.After(timeout):
+				}
+			}
+		} else {
+			if ch, ok := c.(<-chan ethhelpers.BlockNumberWithTimestamp); assert.True(t, ok) {
+				select {
+				case <-ch:
+					t.Error("unexpected result")
+				case <-time.After(timeout):
+				}
 			}
 		}
 	}
@@ -85,7 +110,6 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 				case r, ok := <-ch:
 					assert.True(t, ok)
 					assert.Equal(t, expectedBlock, r.BlockNumber)
-					// TODO: Make delta configurable.
 					assert.WithinDuration(t, time.Now(), r.Timestamp, 300*time.Millisecond)
 				default:
 					assert.Fail(t, "expected result not received: channel empty")
@@ -111,7 +135,7 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 					assert.True(t, ok)
 					assert.Equal(t, expectedBlock, r.BlockNumber)
 					assert.WithinDuration(t, time.Now(), r.Timestamp, 300*time.Millisecond)
-				default:
+				case <-time.After(timeout):
 					assert.Fail(t, "expected result not received: timeout")
 				}
 			}
@@ -133,6 +157,7 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 		"(" + prefix + ") has empty channels immediately after wait call",
 		func(t *testing.T, c ethtesting.ClientWithMock, ticker ethhelpers.BlockNumberTicker) {
 			c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock), nil).Once().After(200 * time.Millisecond)
+			c.Mock().On("BlockNumber", mock.Anything).Return(ethtesting.CanceledMockCall()).Maybe()
 
 			ch := callWait(ticker)
 			time.Sleep(50 * time.Millisecond)
@@ -140,7 +165,19 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 			emptyResult(t, ch)
 			emptyError(t, ticker)
 		},
+		// }, blockNumberTickerTest{
+		// "(" + prefix + ") handles context cancelation before wait call",
+		// func(t *testing.T, c ethtesting.ClientWithMock, ticker ethhelpers.BlockNumberTicker) {
+		// 	c.Mock().On("BlockNumber", mock.Anything).Return(ethtesting.CanceledMockCall()).Maybe()
+
+		// 	ch := callWait(ticker)
+		// 	time.Sleep(50 * time.Millisecond)
+
+		// 	emptyResult(t, ch)
+		// 	emptyError(t, ticker)
 	})
+
+	// TODO: Add tests for context cancelation.
 
 	if !options.emptyResults {
 		//
@@ -151,6 +188,7 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 			"(" + prefix + ") single request, read with timeout",
 			func(t *testing.T, c ethtesting.ClientWithMock, ticker ethhelpers.BlockNumberTicker) {
 				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock), nil).Once().After(20 * time.Millisecond)
+				c.Mock().On("BlockNumber", mock.Anything).Return(ethtesting.CanceledMockCall()).Maybe()
 
 				ch := callWait(ticker)
 				emptyResult(t, ch)
@@ -162,6 +200,7 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 			"(" + prefix + ") single request, read after sleeping",
 			func(t *testing.T, c ethtesting.ClientWithMock, ticker ethhelpers.BlockNumberTicker) {
 				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock), nil).Once().After(20 * time.Millisecond)
+				c.Mock().On("BlockNumber", mock.Anything).Return(ethtesting.CanceledMockCall()).Maybe()
 
 				ch := callWait(ticker)
 				emptyResult(t, ch)
@@ -175,6 +214,7 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 			"(" + prefix + ") single request, read after sleeping beyond tick",
 			func(t *testing.T, c ethtesting.ClientWithMock, ticker ethhelpers.BlockNumberTicker) {
 				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock), nil).Once().After(20 * time.Millisecond)
+				c.Mock().On("BlockNumber", mock.Anything).Return(ethtesting.CanceledMockCall()).Maybe()
 
 				ch := callWait(ticker)
 
@@ -188,16 +228,15 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 			func(t *testing.T, c ethtesting.ClientWithMock, ticker ethhelpers.BlockNumberTicker) {
 				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock), nil).Once().After(10 * time.Millisecond)
 				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock+1), nil).Once().After(10 * time.Millisecond)
+				c.Mock().On("BlockNumber", mock.Anything).Return(ethtesting.CanceledMockCall()).Maybe()
 
 				ch := callWait(ticker)
 				expectedResultWithTimeout(t, uint64(options.fromBlock), ch, 30*time.Millisecond)
 
 				ch = callWait(ticker)
-				expectedResultWithTimeout(t, uint64(0), ch, 30*time.Millisecond)
+				emptyResultWithTimeout(t, ch, 60*time.Millisecond)
+				expectedResultWithTimeout(t, uint64(options.fromBlock+1), ch, 70*time.Millisecond)
 
-				time.Sleep(100 * time.Millisecond)
-
-				expectedResult(t, uint64(options.fromBlock+1), ch)
 				emptyError(t, ticker)
 			},
 		}, blockNumberTickerTest{
@@ -205,6 +244,7 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 			func(t *testing.T, c ethtesting.ClientWithMock, ticker ethhelpers.BlockNumberTicker) {
 				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock), nil).Once().After(10 * time.Millisecond)
 				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock+1), nil).Once().After(10 * time.Millisecond)
+				c.Mock().On("BlockNumber", mock.Anything).Return(ethtesting.CanceledMockCall()).Maybe()
 
 				ch := callWait(ticker)
 				expectedResultWithTimeout(t, uint64(options.fromBlock), ch, 30*time.Millisecond)
@@ -220,12 +260,13 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 			"(" + prefix + ") double request, read next immediately, with same block number",
 			func(t *testing.T, c ethtesting.ClientWithMock, ticker ethhelpers.BlockNumberTicker) {
 				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock), nil).Twice().After(10 * time.Millisecond)
+				c.Mock().On("BlockNumber", mock.Anything).Return(ethtesting.CanceledMockCall()).Maybe()
 
 				ch := callWait(ticker)
 				expectedResultWithTimeout(t, uint64(options.fromBlock), ch, 30*time.Millisecond)
 
 				ch = callWait(ticker)
-				emptyResultWithTimeout(t, ch, 130*time.Millisecond)
+				emptyResultWithTimeout(t, ch, 150*time.Millisecond)
 
 				emptyError(t, ticker)
 			},
@@ -239,7 +280,8 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 		tests = append(tests, blockNumberTickerTest{
 			"(" + prefix + ") single request, wait for empty results",
 			func(t *testing.T, c ethtesting.ClientWithMock, ticker ethhelpers.BlockNumberTicker) {
-				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock), nil).Times(3).After(20 * time.Millisecond)
+				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock), nil).After(20 * time.Millisecond)
+				c.Mock().On("BlockNumber", mock.Anything).Return(ethtesting.CanceledMockCall()).Maybe()
 
 				ch := callWait(ticker)
 
@@ -251,6 +293,7 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 			func(t *testing.T, c ethtesting.ClientWithMock, ticker ethhelpers.BlockNumberTicker) {
 				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock), nil).Once().After(10 * time.Millisecond)
 				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock+1), nil).Twice().After(10 * time.Millisecond)
+				c.Mock().On("BlockNumber", mock.Anything).Return(ethtesting.CanceledMockCall()).Maybe()
 
 				ch := callWait(ticker)
 
@@ -267,6 +310,7 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 			func(t *testing.T, c ethtesting.ClientWithMock, ticker ethhelpers.BlockNumberTicker) {
 				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock), nil).Once().After(10 * time.Millisecond)
 				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock+1), nil).Times(3).After(10 * time.Millisecond)
+				c.Mock().On("BlockNumber", mock.Anything).Return(ethtesting.CanceledMockCall()).Maybe()
 
 				ch := callWait(ticker)
 
@@ -285,6 +329,7 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 			func(t *testing.T, c ethtesting.ClientWithMock, ticker ethhelpers.BlockNumberTicker) {
 				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock), nil).Once().After(10 * time.Millisecond)
 				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock), nil).Twice().After(10 * time.Millisecond)
+				c.Mock().On("BlockNumber", mock.Anything).Return(ethtesting.CanceledMockCall()).Maybe()
 
 				ch := callWait(ticker)
 
@@ -300,6 +345,7 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 			"(" + prefix + ") single request, read next immediately with error, empty results",
 			func(t *testing.T, c ethtesting.ClientWithMock, ticker ethhelpers.BlockNumberTicker) {
 				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(0), errors.New("test error")).Once().After(10 * time.Millisecond)
+				c.Mock().On("BlockNumber", mock.Anything).Return(ethtesting.CanceledMockCall()).Maybe()
 
 				ch := callWait(ticker)
 
@@ -313,6 +359,7 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 			func(t *testing.T, c ethtesting.ClientWithMock, ticker ethhelpers.BlockNumberTicker) {
 				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock), nil).Once().After(10 * time.Millisecond)
 				c.Mock().On("BlockNumber", mock.Anything).Return(uint64(0), errors.New("test error")).Once().After(10 * time.Millisecond)
+				c.Mock().On("BlockNumber", mock.Anything).Return(ethtesting.CanceledMockCall()).Maybe()
 
 				ch := callWait(ticker)
 
@@ -338,10 +385,16 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 		func(t *testing.T, c ethtesting.ClientWithMock, ticker ethhelpers.BlockNumberTicker) {
 			c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock+1), nil).Once().After(10 * time.Millisecond)
 			c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock), nil).Once().After(10 * time.Millisecond)
+			c.Mock().On("BlockNumber", mock.Anything).Return(ethtesting.CanceledMockCall()).Maybe()
 
 			ch := callWait(ticker)
 
-			expectedResultWithTimeout(t, uint64(options.fromBlock+1), ch, 30*time.Millisecond)
+			if !options.emptyResults {
+				expectedResultWithTimeout(t, uint64(options.fromBlock+1), ch, 30*time.Millisecond)
+			} else {
+				emptyResultWithTimeout(t, ch, 30*time.Millisecond)
+			}
+
 			time.Sleep(100 * time.Millisecond)
 
 			ch = callWait(ticker)
@@ -389,6 +442,7 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 		"(" + prefix + ") single request, read error immediately",
 		func(t *testing.T, c ethtesting.ClientWithMock, ticker ethhelpers.BlockNumberTicker) {
 			c.Mock().On("BlockNumber", mock.Anything).Return(uint64(0), errors.New("test error")).Once().After(10 * time.Millisecond)
+			c.Mock().On("BlockNumber", mock.Anything).Return(ethtesting.CanceledMockCall()).Maybe()
 
 			ch := callWait(ticker)
 
@@ -402,6 +456,7 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 		func(t *testing.T, c ethtesting.ClientWithMock, ticker ethhelpers.BlockNumberTicker) {
 			c.Mock().On("BlockNumber", mock.Anything).Return(uint64(options.fromBlock), nil).Once().After(10 * time.Millisecond)
 			c.Mock().On("BlockNumber", mock.Anything).Return(uint64(0), errors.New("test error")).Once().After(10 * time.Millisecond)
+			c.Mock().On("BlockNumber", mock.Anything).Return(ethtesting.CanceledMockCall()).Maybe()
 
 			ch := callWait(ticker)
 
@@ -426,23 +481,29 @@ func testTickers_periodic_fromBlock(t *testing.T, options tickersOptions) []bloc
 
 // TODO: Add FromBlock tests, add NewBlockNumberTickerWithFromBlockAndWindowSize?
 // TODO: Test Clone.
+// TODO: Add 32-bit plus tests.
 
 func TestTickers_NewPeriodicBlockNumberTicker(t *testing.T) {
 	tests := []blockNumberTickerTest{}
 
-	tests = append(tests, testTickers_periodic_fromBlock(t, tickersOptions{
-		fromBlock: 0,
-	})...)
-	tests = append(tests, testTickers_periodic_fromBlock(t, tickersOptions{
-		fromBlock: 1,
-	})...)
-	tests = append(tests, testTickers_periodic_fromBlock(t, tickersOptions{
-		fromBlock: 100000,
-	})...)
-
-	// TODO: Add 32-bit plus tests.
+	for _, withTimestamp := range []bool{false, true} {
+		tests = append(tests, testTickers_periodic_fromBlock(t, tickersOptions{
+			fromBlock:     0,
+			withTimestamp: withTimestamp,
+		})...)
+		tests = append(tests, testTickers_periodic_fromBlock(t, tickersOptions{
+			fromBlock:     1,
+			withTimestamp: withTimestamp,
+		})...)
+		tests = append(tests, testTickers_periodic_fromBlock(t, tickersOptions{
+			fromBlock:     100000,
+			withTimestamp: withTimestamp,
+		})...)
+	}
 
 	for _, test := range tests {
+		test := test
+
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -450,6 +511,7 @@ func TestTickers_NewPeriodicBlockNumberTicker(t *testing.T) {
 			defer cancel()
 
 			client := ethtesting.NewClientWithMock()
+			client.Test(t)
 
 			ticker := ethhelpers.NewPeriodicBlockNumberTicker(ctx, client, 100*time.Millisecond)
 			defer ticker.Stop()
@@ -464,17 +526,24 @@ func TestTickers_NewPeriodicBlockNumberTicker(t *testing.T) {
 func TestTickers_NewPeriodicBlockNumberTickerFromBlock_fromBlock_0(t *testing.T) {
 	tests := []blockNumberTickerTest{}
 
-	tests = append(tests, testTickers_periodic_fromBlock(t, tickersOptions{
-		fromBlock: 0,
-	})...)
-	tests = append(tests, testTickers_periodic_fromBlock(t, tickersOptions{
-		fromBlock: 1,
-	})...)
-	tests = append(tests, testTickers_periodic_fromBlock(t, tickersOptions{
-		fromBlock: 100000,
-	})...)
+	for _, withTimestamp := range []bool{false, true} {
+		tests = append(tests, testTickers_periodic_fromBlock(t, tickersOptions{
+			fromBlock:     0,
+			withTimestamp: withTimestamp,
+		})...)
+		tests = append(tests, testTickers_periodic_fromBlock(t, tickersOptions{
+			fromBlock:     1,
+			withTimestamp: withTimestamp,
+		})...)
+		tests = append(tests, testTickers_periodic_fromBlock(t, tickersOptions{
+			fromBlock:     100000,
+			withTimestamp: withTimestamp,
+		})...)
+	}
 
 	for _, test := range tests {
+		test := test
+
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -482,6 +551,7 @@ func TestTickers_NewPeriodicBlockNumberTickerFromBlock_fromBlock_0(t *testing.T)
 			defer cancel()
 
 			client := ethtesting.NewClientWithMock()
+			client.Test(t)
 
 			ticker := ethhelpers.NewPeriodicBlockNumberTickerFromBlock(ctx, client, 100*time.Millisecond, 0)
 			defer ticker.Stop()
@@ -496,19 +566,26 @@ func TestTickers_NewPeriodicBlockNumberTickerFromBlock_fromBlock_0(t *testing.T)
 func TestTickers_NewPeriodicBlockNumberTickerFromBlock_fromBlock_100000(t *testing.T) {
 	tests := []blockNumberTickerTest{}
 
-	tests = append(tests, testTickers_periodic_fromBlock(t, tickersOptions{
-		fromBlock:    0,
-		emptyResults: true,
-	})...)
-	tests = append(tests, testTickers_periodic_fromBlock(t, tickersOptions{
-		fromBlock:    1,
-		emptyResults: true,
-	})...)
-	tests = append(tests, testTickers_periodic_fromBlock(t, tickersOptions{
-		fromBlock: 100000,
-	})...)
+	for _, withTimestamp := range []bool{false, true} {
+		tests = append(tests, testTickers_periodic_fromBlock(t, tickersOptions{
+			fromBlock:     0,
+			withTimestamp: withTimestamp,
+			emptyResults:  true,
+		})...)
+		tests = append(tests, testTickers_periodic_fromBlock(t, tickersOptions{
+			fromBlock:     1,
+			withTimestamp: withTimestamp,
+			emptyResults:  true,
+		})...)
+		tests = append(tests, testTickers_periodic_fromBlock(t, tickersOptions{
+			fromBlock:     100000,
+			withTimestamp: withTimestamp,
+		})...)
+	}
 
 	for _, test := range tests {
+		test := test
+
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -516,6 +593,7 @@ func TestTickers_NewPeriodicBlockNumberTickerFromBlock_fromBlock_100000(t *testi
 			defer cancel()
 
 			client := ethtesting.NewClientWithMock()
+			client.Test(t)
 
 			ticker := ethhelpers.NewPeriodicBlockNumberTickerFromBlock(ctx, client, 100*time.Millisecond, 100000)
 			defer ticker.Stop()

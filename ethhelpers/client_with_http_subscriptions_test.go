@@ -22,7 +22,7 @@ func TestClientWithHTTPSubscriptions_SubscribeFilterLogs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	sim, contract, closeSim := newTestDefaultSimulatedBackendWithCallableContract(t)
+	sim, contract, closeSim := newDefaultSimulatedBackendWithCallableContract(t)
 	defer closeSim()
 
 	// TODO: Speed up the test.

@@ -60,7 +60,7 @@ func TestClientWithDefaultHandler(t *testing.T) {
 				hash := common.HexToHash("0x1234")
 
 				r, err := args.client.BlockByHash(args.ctx, hash)
-				assert.Same(t, callError, err)
+				assert.Same(t, preCallError, err)
 				assert.Nil(t, r)
 			},
 			preCallError: preCallError,
@@ -81,6 +81,8 @@ func TestClientWithDefaultHandler(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
+
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 

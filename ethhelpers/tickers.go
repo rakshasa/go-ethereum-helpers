@@ -173,6 +173,7 @@ func (t *periodicBlockNumberTickerSource) start(ctx context.Context, interval ti
 	select {
 	case <-t.request:
 	case <-ctx.Done():
+		t.errors <- ctx.Err()
 		return
 	}
 
@@ -207,6 +208,8 @@ func (t *periodicBlockNumberTickerSource) start(ctx context.Context, interval ti
 			return
 		}
 
+		// TODO: Mock client isn't canceling on context cancel.
+
 		if currentBlock, err = t.client.BlockNumber(ctx); err != nil {
 			t.errors <- err
 			return
@@ -215,8 +218,6 @@ func (t *periodicBlockNumberTickerSource) start(ctx context.Context, interval ti
 		timestamp = time.Now()
 	}
 }
-
-// TODO: Separate into two functions for requestC and tickerC.
 
 func (t *periodicBlockNumberTickerSource) handle(ctx context.Context, fromBlock, currentBlock uint64, timestamp time.Time, tickerC <-chan time.Time) (uint64, error) {
 	var requestC <-chan struct{}

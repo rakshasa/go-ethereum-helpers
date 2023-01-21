@@ -18,7 +18,7 @@ func TestWaitForTransactionReceipt(t *testing.T) {
 
 	assert := assert.New(t)
 
-	sim, closeSim := newTestDefaultSimulatedBackend(t)
+	sim, closeSim := newDefaultSimulatedBackend(t)
 	defer closeSim()
 
 	ctx := context.Background()
@@ -70,7 +70,7 @@ func TestWaitTransactionReceipts(t *testing.T) {
 
 	assert := assert.New(t)
 
-	sim, closeSim := newTestDefaultSimulatedBackend(t)
+	sim, closeSim := newDefaultSimulatedBackend(t)
 	defer closeSim()
 
 	ctx := context.Background()
