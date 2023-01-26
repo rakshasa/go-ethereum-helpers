@@ -65,7 +65,9 @@ func ExampleNewPeriodicBlockNumberTickerFromBlock() {
 
 	for {
 		select {
-		case currentBlock = <-ticker.Wait():
+		case bn := <-ticker.Wait():
+			currentBlock = bn.BlockNumber
+
 			fmt.Printf("currentBlock: %d\n", currentBlock)
 
 			if currentBlock == 5 {

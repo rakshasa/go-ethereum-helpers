@@ -59,8 +59,8 @@ func SubscribeFilterLogsWithHTTP(ctx context.Context, client FilterLogsReader, c
 
 		waitFn := func() (uint64, bool) {
 			select {
-			case num := <-ticker.Wait():
-				return num, true
+			case bn := <-ticker.Wait():
+				return bn.BlockNumber, true
 
 			case err := <-ticker.Err():
 				if err == nil {
