@@ -4,7 +4,7 @@ github.com/StackExchange/wmi
 # github.com/VictoriaMetrics/fastcache v1.6.0
 ## explicit; go 1.13
 github.com/VictoriaMetrics/fastcache
-# github.com/btcsuite/btcd/btcec/v2 v2.3.0
+# github.com/btcsuite/btcd/btcec/v2 v2.3.2
 ## explicit; go 1.17
 github.com/btcsuite/btcd/btcec/v2
 github.com/btcsuite/btcd/btcec/v2/ecdsa
@@ -150,13 +150,13 @@ github.com/tklauser/go-sysconf
 # github.com/tklauser/numcpus v0.2.2
 ## explicit; go 1.11
 github.com/tklauser/numcpus
-# golang.org/x/crypto v0.1.0
+# golang.org/x/crypto v0.5.0
 ## explicit; go 1.17
 golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/ripemd160
 golang.org/x/crypto/scrypt
 golang.org/x/crypto/sha3
-# golang.org/x/sys v0.2.0
+# golang.org/x/sys v0.4.0
 ## explicit; go 1.17
 golang.org/x/sys/cpu
 golang.org/x/sys/internal/unsafeheader
