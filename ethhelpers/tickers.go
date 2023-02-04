@@ -8,15 +8,14 @@ import (
 
 // BlockNumberTicker is a ticker that emits block numbers.
 type BlockNumberTicker interface {
-	// Wait returns a channel that emits BlockNumber, and must be called at
-	// least once per result read.
+	// Wait returns a channel that emits BlockNumber, and must be called before
+	// each read.
 	//
-	// Reading from old channels has undefined behavior, and no reads should be
-	// ongoing when calling Wait.
+	// Reading from previously returned channels is not supported, and may in
+	// some edge cases cause the new channel to skip a tick.
 	//
-	// The returned channel is only guaranteed to return a valid result once,
-	// reading from the channel multiple times or from multiple channels
-	// returned by Wait has undefined behavior.
+	// To make sure the block number returned is up-to-date, call Wait rather
+	// than reuse an unread channel.
 	//
 	// Truncated in the result is true if it was truncated by the window size.
 	Wait() <-chan BlockNumber
@@ -39,20 +38,39 @@ type BlockNumber struct {
 
 // blockNumberTicker is a generic handler for block number tickers.
 type blockNumberTicker struct {
-	request        chan<- struct{}
-	result         <-chan BlockNumber
+	request        chan blockNumberTickerRequest
 	errors         <-chan error
 	cloneFromBlock func(uint64) *blockNumberTicker
 	stop           func()
 }
 
-func (t *blockNumberTicker) Wait() <-chan BlockNumber {
-	select {
-	case t.request <- struct{}{}:
-	default:
-	}
+type blockNumberTickerRequest struct {
+	result chan<- BlockNumber
+}
 
-	return t.result
+func (t *blockNumberTicker) Wait() <-chan BlockNumber {
+	ch := make(chan BlockNumber)
+
+	for {
+		select {
+		case t.request <- blockNumberTickerRequest{ch}:
+			return ch
+		default:
+		}
+
+		// Discard previous request if it hasn't been read yet.
+		select {
+		case <-t.request:
+		default:
+		}
+
+		// select {
+		// case t.request <- blockNumberTickerRequest{ch}:
+		// 	return ch
+		// case <-t.request:
+		// 	// Discard previous request if it hasn't been read yet.
+		// }
+	}
 }
 
 func (t *blockNumberTicker) Err() <-chan error {
@@ -69,6 +87,8 @@ func (t *blockNumberTicker) Stop() {
 
 // TODO: Add discard duration, default to half of interval.
 // TODO: Add max block interval and historic iteration options, these should wrap the PBNT Wait channel.
+// TODO: Add max distance between start block and fromBlock. Also sanity check current block returned.
+// TODO: Replace with periodic ticker options config.
 
 // NewPeriodicBlockNumberTicker creates a new block number ticker that
 // ticks at a fixed time interval, starting from the current block number.
@@ -93,23 +113,30 @@ func NewPeriodicBlockNumberTickerFromBlock(ctx context.Context, client BlockNumb
 	return newPeriodicBlockNumberTicker(ctx, stop, client, interval, &fromBlock, 0)
 }
 
+func NewPeriodicBlockNumberTickerFromBlockWithWindowSize(ctx context.Context, client BlockNumberReader, interval time.Duration, fromBlock uint64, windowSize uint64) BlockNumberTicker {
+	ctx, stop := context.WithCancel(ctx)
+	return newPeriodicBlockNumberTicker(ctx, stop, client, interval, &fromBlock, windowSize)
+}
+
 type periodicBlockNumberTickerSource struct {
 	client     BlockNumberReader
-	request    <-chan struct{}
+	request    <-chan blockNumberTickerRequest
 	result     chan<- BlockNumber
 	errors     chan<- error
+	ticker     *time.Ticker
+	fromBlock  uint64
 	windowSize uint64
 }
 
+// TODO: Fix stop being copied here.
+
 func newPeriodicBlockNumberTicker(ctx context.Context, stop func(), client BlockNumberReader, interval time.Duration, fromBlock *uint64, windowSize uint64) *blockNumberTicker {
-	request := make(chan struct{}, 1)
-	result := make(chan BlockNumber)
+	request := make(chan blockNumberTickerRequest, 1)
 	errors := make(chan error, 1)
 
 	t := &periodicBlockNumberTickerSource{
 		client:     client,
 		request:    request,
-		result:     result,
 		errors:     errors,
 		windowSize: windowSize,
 	}
@@ -118,7 +145,6 @@ func newPeriodicBlockNumberTicker(ctx context.Context, stop func(), client Block
 
 	return &blockNumberTicker{
 		request: request,
-		result:  result,
 		errors:  errors,
 		cloneFromBlock: func(fb uint64) *blockNumberTicker {
 			return newPeriodicBlockNumberTicker(ctx, stop, client, interval, &fb, windowSize)
@@ -131,14 +157,15 @@ func (t *periodicBlockNumberTickerSource) start(ctx context.Context, interval ti
 	defer close(t.errors)
 
 	select {
-	case <-t.request:
+	case request := <-t.request:
+		t.result = request.result
 	case <-ctx.Done():
 		t.errors <- ctx.Err()
 		return
 	}
 
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	t.ticker = time.NewTicker(interval)
+	defer t.ticker.Stop()
 
 	currentBlock, err := t.client.BlockNumber(ctx)
 	if err != nil {
@@ -146,45 +173,60 @@ func (t *periodicBlockNumberTickerSource) start(ctx context.Context, interval ti
 		return
 	}
 
-	var fromBlock uint64
-
 	if initialFromBlock == nil {
-		fromBlock = currentBlock
+		t.fromBlock = currentBlock
 	} else {
-		fromBlock = *initialFromBlock
+		t.fromBlock = *initialFromBlock
 	}
 
-	if fromBlock+2 < fromBlock || fromBlock+t.windowSize < fromBlock {
+	// TODO: Properly verify these sanity checks.
+
+	if t.fromBlock+2 < t.fromBlock || t.fromBlock+t.windowSize < t.fromBlock {
 		t.errors <- fmt.Errorf("from block number overflow")
 		return
 	}
 
+	if t.windowSize+2 < t.windowSize {
+		t.errors <- fmt.Errorf("window size overflow")
+		return
+	}
+
 	for {
-		// Ensure the user doesn't overflow the uint64 block number if incremented twice.
-		if currentBlock+2 < currentBlock || currentBlock+t.windowSize < currentBlock {
-			t.errors <- fmt.Errorf("block number overflow")
-			return
-		}
-
-		// Make it loop until within windowSize, and then re-request the latest if ticker has passed.
-		// Needs to be a separate handler.
-
-		// TODO: Add option to require time interval even for truncated results.
-		// TODO: Re-request latest block number if ticker has passed.
-
-		// TODO: Consider rewrting this to have 'request' return a result
-		// channel. Or rather, request passes a result channel to the ticker.
-
-		timestamp := time.Now()
-
-		if t.windowSize != 0 {
-			if fromBlock, err = t.handleTruncated(ctx, fromBlock, currentBlock, timestamp); err != nil {
-				t.errors <- err
-				return
+		if err := func() error {
+			// Ensure the user doesn't overflow the uint64 block number if incremented twice.
+			if currentBlock+2 < currentBlock || currentBlock+t.windowSize < currentBlock {
+				return fmt.Errorf("block number overflow")
 			}
-		}
 
-		if fromBlock, err = t.handleLatest(ctx, fromBlock, currentBlock, timestamp, ticker.C); err != nil {
+			// TODO: Add option for an adaptive tick interval to avoid tickers silently
+			// eating up api requests. Perhaps a Flush() method that reads requestC.
+			if currentBlock < t.fromBlock {
+				select {
+				case <-t.ticker.C:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+
+			// TODO: Add option to require time interval even for truncated results.
+			// TODO: Re-request latest block number if ticker has passed.
+
+			timestamp := time.Now()
+
+			if t.windowSize != 0 && currentBlock > t.fromBlock+(t.windowSize-1) {
+				if err := t.handleTruncated(ctx, currentBlock, timestamp); err != nil {
+					return err
+				}
+			}
+
+			if err = t.handleLatest(ctx, currentBlock, timestamp); err != nil {
+				return err
+			}
+
+			return nil
+
+		}(); err != nil {
 			t.errors <- err
 			return
 		}
@@ -198,75 +240,88 @@ func (t *periodicBlockNumberTickerSource) start(ctx context.Context, interval ti
 	}
 }
 
-func (t *periodicBlockNumberTickerSource) handleTruncated(ctx context.Context, fromBlock, currentBlock uint64, timestamp time.Time) (uint64, error) {
-	for fromBlock+(t.windowSize-1) < currentBlock {
+// TODO: Add option to use interval for truncated results.
+
+func (t *periodicBlockNumberTickerSource) handleTruncated(ctx context.Context, currentBlock uint64, timestamp time.Time) error {
+	resultC := t.result
+
+	for currentBlock > t.fromBlock+(t.windowSize-1) {
 		select {
-		case t.result <- BlockNumber{fromBlock + (t.windowSize - 1), timestamp, true}:
-			// TODO: Do we keep consistent ticker time, or do we reset? Should be an option.
-			fromBlock = fromBlock + (t.windowSize - 1) + 1
+		case resultC <- BlockNumber{t.fromBlock + (t.windowSize - 1), timestamp, true}:
+			t.fromBlock = t.fromBlock + (t.windowSize - 1) + 1
+			t.result = nil
+			resultC = nil
+
+		case request := <-t.request:
+			t.result = request.result
+			resultC = request.result
+
 		case <-ctx.Done():
-			return fromBlock, ctx.Err()
+			return ctx.Err()
 		}
 	}
 
-	// TODO: If a new request is received and ticker has passed, do a new request.
+	// TODO: Not entirely correct...
+	if resultC == nil {
+		select {
+		case request := <-t.request:
+			t.result = request.result
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 
-	return fromBlock, nil
+	// TODO: If a new request is received and ticker has passed, do a new
+	// request. This should be done when the for loop has written more than one
+	// result.
+
+	return nil
 }
 
-func (t *periodicBlockNumberTickerSource) handleLatest(ctx context.Context, fromBlock, currentBlock uint64, timestamp time.Time, tickerC <-chan time.Time) (uint64, error) {
-	// We need to catch up to fromBlock, so just wait for the next tick.
-	//
-	// TODO: Add option for an adaptive tick interval to avoid tickers silently
-	// eating up api requests. Perhaps a Flush() method that reads requestC.
-	if currentBlock < fromBlock {
-		select {
-		case <-tickerC:
-			return fromBlock, nil
-		case <-ctx.Done():
-			return fromBlock, ctx.Err()
-		}
-	}
-
-	select {
-	case <-t.request:
-	default:
+func (t *periodicBlockNumberTickerSource) handleLatest(ctx context.Context, currentBlock uint64, timestamp time.Time) error {
+	// TODO: Reconsider this.
+	if t.result == nil {
+		panic("handleLatest: result channel is nil")
 	}
 
 	resultC := t.result
+	tickerC := t.ticker.C
+
+	shouldUpdate := false
 
 	for {
 		select {
+		case request := <-t.request:
+			t.result = request.result
+
+			if tickerC == nil {
+				return nil
+			}
+
+			// Check timestamp to see if we're close enough to the next tick.
+			shouldUpdate = true
+
+			if resultC != nil {
+				resultC = request.result
+			}
+
 		case resultC <- BlockNumber{currentBlock, timestamp, false}:
-			// TODO: Do we keep consistent ticker time, or do we reset? Should be an option.
-			fromBlock = currentBlock + 1
+			// TODO: Add option to reset ticker on result being received.
+			t.fromBlock = currentBlock + 1
+			t.result = nil
 			resultC = nil
 
 		case <-tickerC:
-			if resultC != nil {
-				select {
-				case <-t.request:
-				default:
-				}
-			}
+			tickerC = nil
 
-			for {
-				select {
-				case resultC <- BlockNumber{currentBlock, timestamp, false}:
-					fromBlock = currentBlock + 1
-					resultC = nil
-
-				case <-t.request:
-					// TODO: If we have race condition here we can end up passing a stale result.
-					return fromBlock, nil
-
-				case <-ctx.Done():
-					return fromBlock, ctx.Err()
-				}
+			// TODO: Need to safeguard against slow api calls causing the ticker
+			// to fire before the result is sent through the channel.
+			if shouldUpdate {
+				return nil
 			}
 
 		case <-ctx.Done():
-			return fromBlock, ctx.Err()
+			return ctx.Err()
 		}
 	}
 }

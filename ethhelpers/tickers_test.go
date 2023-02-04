@@ -90,8 +90,12 @@ func testTickers_periodic(t *testing.T, options tickersOptions) []blockNumberTic
 	}
 	emptyError := func(t *testing.T, ticker ethhelpers.BlockNumberTicker) {
 		select {
-		case err := <-ticker.Err():
-			t.Error("unexpected error", err)
+		case err, ok := <-ticker.Err():
+			if !ok {
+				t.Error("unexpected close")
+			} else {
+				t.Error("unexpected error", err)
+			}
 		default:
 		}
 	}
@@ -734,6 +738,99 @@ func TestTickers_NewPeriodicBlockNumberTickerFromBlock_100000(t *testing.T) {
 			client.Test(t)
 
 			ticker := ethhelpers.NewPeriodicBlockNumberTickerFromBlock(ctx, client, 100*time.Millisecond, 100000)
+			defer ticker.Stop()
+
+			test.fn(t, client, ticker)
+
+			client.Mock().AssertExpectations(t)
+		})
+	}
+}
+
+func TestTickers_NewPeriodicBlockNumberTickerFromBlockWithWindowSize_0_10(t *testing.T) {
+	tests := []blockNumberTickerTest{}
+
+	tests = append(tests, testTickers_periodic(t, tickersOptions{
+		startBlock:    0,
+		windowSize:    10,
+		withFromBlock: true,
+		withTimestamp: true,
+	})...)
+	tests = append(tests, testTickers_periodic(t, tickersOptions{
+		startBlock:    1,
+		windowSize:    10,
+		withFromBlock: true,
+		withTimestamp: true,
+	})...)
+	// tests = append(tests, testTickers_periodic(t, tickersOptions{
+	// 	startBlock:    100000,
+	// 	windowSize:    10,
+	// 	withFromBlock: true,
+	// 	withTimestamp: true,
+	// })...)
+
+	// TODO: Add tests to ensure startBlock:1000000 starts from 0.
+	// TODO: Use emptyResults inverse option.
+
+	for _, test := range tests {
+		test := test
+
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			client := ethtesting.NewClientWithMock()
+			client.Test(t)
+
+			ticker := ethhelpers.NewPeriodicBlockNumberTickerFromBlockWithWindowSize(ctx, client, 100*time.Millisecond, 0, 10)
+			defer ticker.Stop()
+
+			test.fn(t, client, ticker)
+
+			client.Mock().AssertExpectations(t)
+		})
+	}
+}
+
+func TestTickers_NewPeriodicBlockNumberTickerFromBlockWithWindowSize_100000_10(t *testing.T) {
+	tests := []blockNumberTickerTest{}
+
+	tests = append(tests, testTickers_periodic(t, tickersOptions{
+		startBlock:    0,
+		windowSize:    10,
+		withFromBlock: true,
+		withTimestamp: true,
+		emptyResults:  true,
+	})...)
+	tests = append(tests, testTickers_periodic(t, tickersOptions{
+		startBlock:    1,
+		windowSize:    10,
+		withFromBlock: true,
+		withTimestamp: true,
+		emptyResults:  true,
+	})...)
+	tests = append(tests, testTickers_periodic(t, tickersOptions{
+		startBlock:    100000,
+		windowSize:    10,
+		withFromBlock: true,
+		withTimestamp: true,
+	})...)
+
+	for _, test := range tests {
+		test := test
+
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			client := ethtesting.NewClientWithMock()
+			client.Test(t)
+
+			ticker := ethhelpers.NewPeriodicBlockNumberTickerFromBlockWithWindowSize(ctx, client, 100*time.Millisecond, 100000, 10)
 			defer ticker.Stop()
 
 			test.fn(t, client, ticker)
