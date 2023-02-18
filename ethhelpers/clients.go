@@ -89,13 +89,13 @@ type Client interface {
 
 // TODO: Add client without subcription methods.
 
+type BlockNumberReader interface {
+	BlockNumber(ctx context.Context) (uint64, error)
+}
+
 type ChainReaderAndTransactionSender interface {
 	ethereum.TransactionSender
 	ethereum.ChainReader
-}
-
-type BlockNumberReader interface {
-	BlockNumber(ctx context.Context) (uint64, error)
 }
 
 type FilterLogsReader interface {

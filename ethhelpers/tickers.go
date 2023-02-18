@@ -63,13 +63,6 @@ func (t *blockNumberTicker) Wait() <-chan BlockNumber {
 		case <-t.request:
 		default:
 		}
-
-		// select {
-		// case t.request <- blockNumberTickerRequest{ch}:
-		// 	return ch
-		// case <-t.request:
-		// 	// Discard previous request if it hasn't been read yet.
-		// }
 	}
 }
 

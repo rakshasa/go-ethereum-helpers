@@ -29,8 +29,8 @@ func TestClientWithHTTPSubscriptions_SubscribeFilterLogs(t *testing.T) {
 	client := ethhelpers.NewClientWithHTTPSubscriptions(
 		ethtesting.NewSimulatedClient(sim.Backend),
 
-		func(ctx context.Context, fromBlock uint64) ethhelpers.BlockNumberTicker {
-			return ethhelpers.NewPeriodicBlockNumberTickerFromBlock(ctx, ethtesting.NewSimulatedClient(sim.Backend), time.Second/4, fromBlock)
+		func(ctx context.Context, fromBlock uint64) (ethhelpers.BlockNumberTicker, error) {
+			return ethhelpers.NewPeriodicBlockNumberTickerFromBlock(ctx, ethtesting.NewSimulatedClient(sim.Backend), time.Second/4, fromBlock), nil
 		},
 	)
 

@@ -34,8 +34,10 @@ type clientWithHandlers struct {
 
 // NewClientWithHandlers creates a new client with custom handlers.
 //
-// The handlers cannot modify the content of the arguments or results, except by
-// overriding the error.
+// The handlers cannot modify the content of the arguments or results, except
+// for overriding the error returned.
+//
+// Handlers should return nil if it has not changed the error.
 func NewClientWithDefaultHandler(defaultHandler func(context.Context, ClientCaller) error) Client {
 	return &clientWithHandlers{
 		defaultHandler: defaultHandler,
