@@ -6,6 +6,13 @@ import (
 	"time"
 )
 
+// TODO: Add discard duration, default to half of interval.
+// TODO: Add max distance between start block and fromBlock. Also sanity check current block returned.
+// TODO: Replace with periodic ticker options config.
+
+// TODO: Add a ResetToBlock method.
+// TODO: Add a way to get the working block number.
+
 // BlockNumberTicker is a ticker that emits block numbers.
 type BlockNumberTicker interface {
 	// Wait returns a channel that emits BlockNumber, and must be called before
@@ -23,9 +30,6 @@ type BlockNumberTicker interface {
 	// Err returns a channel that emits errors that occur while waiting for block numbers.
 	Err() <-chan error
 
-	// CloneFromBlock creates a new ticker that starts from the given block number.
-	CloneFromBlock(fromBlock uint64) BlockNumberTicker
-
 	// Stop stops the ticker.
 	Stop()
 }
@@ -38,10 +42,9 @@ type BlockNumber struct {
 
 // blockNumberTicker is a generic handler for block number tickers.
 type blockNumberTicker struct {
-	request        chan blockNumberTickerRequest
-	errors         <-chan error
-	cloneFromBlock func(uint64) *blockNumberTicker
-	stop           func()
+	request chan blockNumberTickerRequest
+	errors  <-chan error
+	stop    func()
 }
 
 type blockNumberTickerRequest struct {
@@ -63,6 +66,15 @@ func (t *blockNumberTicker) Wait() <-chan BlockNumber {
 		case <-t.request:
 		default:
 		}
+
+		// This should work:
+
+		// select {
+		// case t.request <- blockNumberTickerRequest{ch}:
+		//      return ch
+		// case <-t.request:
+		//      // Discard previous request if it hasn't been read yet.
+		// }
 	}
 }
 
@@ -70,80 +82,65 @@ func (t *blockNumberTicker) Err() <-chan error {
 	return t.errors
 }
 
-func (t *blockNumberTicker) CloneFromBlock(fromBlock uint64) BlockNumberTicker {
-	return t.cloneFromBlock(fromBlock)
-}
-
 func (t *blockNumberTicker) Stop() {
 	t.stop()
 }
 
-// TODO: Add discard duration, default to half of interval.
-// TODO: Add max block interval and historic iteration options, these should wrap the PBNT Wait channel.
-// TODO: Add max distance between start block and fromBlock. Also sanity check current block returned.
-// TODO: Replace with periodic ticker options config.
+type PeriodicBlockNumberTickerOptions struct {
+	Client    BlockNumberReader
+	FromBlock *uint64
 
-// NewPeriodicBlockNumberTicker creates a new block number ticker that
-// ticks at a fixed time interval, starting from the current block number.
-func NewPeriodicBlockNumberTicker(ctx context.Context, client BlockNumberReader, interval time.Duration) BlockNumberTicker {
-	ctx, stop := context.WithCancel(ctx)
-	return newPeriodicBlockNumberTicker(ctx, stop, client, interval, nil, 0)
-}
+	// Interval is the minimum time between API requests.
+	//
+	// Must be greater than 1ms.
+	Interval time.Duration
 
-func NewPeriodicBlockNumberTickerWithWindowSize(ctx context.Context, client BlockNumberReader, interval time.Duration, windowSize uint64) BlockNumberTicker {
-	ctx, stop := context.WithCancel(ctx)
-	return newPeriodicBlockNumberTicker(ctx, stop, client, interval, nil, windowSize)
-}
-
-// NewPeriodicBlockNumberTickerFromBlock creates a new block number ticker that
-// ticks at a fixed time interval, starting from the given block number.
-//
-// The ticker continues to make BlockNumber request calls after calling Wait if
-// fromBlock was not reached. Therefor the ticker should be manually stopped
-// and/or not used with fromBlock values that are not imminient.
-func NewPeriodicBlockNumberTickerFromBlock(ctx context.Context, client BlockNumberReader, interval time.Duration, fromBlock uint64) BlockNumberTicker {
-	ctx, stop := context.WithCancel(ctx)
-	return newPeriodicBlockNumberTicker(ctx, stop, client, interval, &fromBlock, 0)
-}
-
-func NewPeriodicBlockNumberTickerFromBlockWithWindowSize(ctx context.Context, client BlockNumberReader, interval time.Duration, fromBlock uint64, windowSize uint64) BlockNumberTicker {
-	ctx, stop := context.WithCancel(ctx)
-	return newPeriodicBlockNumberTicker(ctx, stop, client, interval, &fromBlock, windowSize)
+	// The ticker continues to make BlockNumber request calls after calling Wait if
+	// fromBlock was not reached. Therefor the ticker should be manually stopped
+	// and/or not used with fromBlock values that are not imminient.
+	WindowSize uint64
 }
 
 type periodicBlockNumberTickerSource struct {
-	client     BlockNumberReader
-	request    <-chan blockNumberTickerRequest
-	result     chan<- BlockNumber
-	errors     chan<- error
-	ticker     *time.Ticker
+	client  BlockNumberReader
+	request <-chan blockNumberTickerRequest
+	result  chan<- BlockNumber
+	errors  chan<- error
+	ticker  *time.Ticker
+
 	fromBlock  uint64
 	windowSize uint64
 }
 
-// TODO: Fix stop being copied here.
+// NewPeriodicBlockNumberTicker creates a new block number ticker that
+// ticks at a fixed time interval, starting from the current block number.
+func NewPeriodicBlockNumberTicker(ctx context.Context, opts PeriodicBlockNumberTickerOptions) (BlockNumberTicker, error) {
+	if opts.Client == nil {
+		return nil, fmt.Errorf("client is nil")
+	}
+	if opts.Interval <= 1*time.Millisecond {
+		return nil, fmt.Errorf("interval must be greater than 1ms")
+	}
 
-func newPeriodicBlockNumberTicker(ctx context.Context, stop func(), client BlockNumberReader, interval time.Duration, fromBlock *uint64, windowSize uint64) *blockNumberTicker {
+	ctx, stop := context.WithCancel(ctx)
+
 	request := make(chan blockNumberTickerRequest, 1)
 	errors := make(chan error, 1)
 
 	t := &periodicBlockNumberTickerSource{
-		client:     client,
+		client:     opts.Client,
 		request:    request,
 		errors:     errors,
-		windowSize: windowSize,
+		windowSize: opts.WindowSize,
 	}
 
-	go t.start(ctx, interval, fromBlock)
+	go t.start(ctx, opts.Interval, opts.FromBlock)
 
 	return &blockNumberTicker{
 		request: request,
 		errors:  errors,
-		cloneFromBlock: func(fb uint64) *blockNumberTicker {
-			return newPeriodicBlockNumberTicker(ctx, stop, client, interval, &fb, windowSize)
-		},
-		stop: stop,
-	}
+		stop:    stop,
+	}, nil
 }
 
 func (t *periodicBlockNumberTickerSource) start(ctx context.Context, interval time.Duration, initialFromBlock *uint64) {

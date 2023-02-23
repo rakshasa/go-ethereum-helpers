@@ -25,12 +25,15 @@ func TestClientWithHTTPSubscriptions_SubscribeFilterLogs(t *testing.T) {
 	sim, contract, closeSim := newDefaultSimulatedBackendWithCallableContract(t)
 	defer closeSim()
 
-	// TODO: Speed up the test.
 	client := ethhelpers.NewClientWithHTTPSubscriptions(
 		ethtesting.NewSimulatedClient(sim.Backend),
 
 		func(ctx context.Context, fromBlock uint64) (ethhelpers.BlockNumberTicker, error) {
-			return ethhelpers.NewPeriodicBlockNumberTickerFromBlock(ctx, ethtesting.NewSimulatedClient(sim.Backend), time.Second/4, fromBlock), nil
+			return ethhelpers.NewPeriodicBlockNumberTicker(ctx, ethhelpers.PeriodicBlockNumberTickerOptions{
+				Client:    ethtesting.NewSimulatedClient(sim.Backend),
+				Interval:  time.Second / 4,
+				FromBlock: &fromBlock,
+			})
 		},
 	)
 

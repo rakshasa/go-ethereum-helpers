@@ -37,7 +37,7 @@ func newExampleDefaultSimulatedBackend() (*ethtesting.SimulatedBackendWithAccoun
 	}
 }
 
-func ExampleNewPeriodicBlockNumberTickerFromBlock() {
+func ExampleNewPeriodicBlockNumberTicker() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -46,7 +46,14 @@ func ExampleNewPeriodicBlockNumberTickerFromBlock() {
 
 	fromBlock := uint64(3)
 
-	ticker := ethhelpers.NewPeriodicBlockNumberTickerFromBlock(ctx, ethtesting.NewSimulatedClient(sim.Backend), 200*time.Millisecond, fromBlock)
+	ticker, err := ethhelpers.NewPeriodicBlockNumberTicker(ctx, ethhelpers.PeriodicBlockNumberTickerOptions{
+		Client:    ethtesting.NewSimulatedClient(sim.Backend),
+		Interval:  200 * time.Millisecond,
+		FromBlock: &fromBlock,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer ticker.Stop()
 
 	go func() {

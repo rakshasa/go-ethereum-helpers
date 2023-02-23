@@ -612,7 +612,11 @@ func TestTickers_NewPeriodicBlockNumberTicker(t *testing.T) {
 			client := ethtesting.NewClientWithMock()
 			client.Test(t)
 
-			ticker := ethhelpers.NewPeriodicBlockNumberTicker(ctx, client, 100*time.Millisecond)
+			ticker, err := ethhelpers.NewPeriodicBlockNumberTicker(ctx, ethhelpers.PeriodicBlockNumberTickerOptions{
+				Client:   client,
+				Interval: 100 * time.Millisecond,
+			})
+			assert.NoError(t, err)
 			defer ticker.Stop()
 
 			test.fn(t, client, ticker)
@@ -653,7 +657,12 @@ func TestTickers_NewPeriodicBlockNumberTickerWithWindowSize_10(t *testing.T) {
 			client := ethtesting.NewClientWithMock()
 			client.Test(t)
 
-			ticker := ethhelpers.NewPeriodicBlockNumberTickerWithWindowSize(ctx, client, 100*time.Millisecond, 10)
+			ticker, err := ethhelpers.NewPeriodicBlockNumberTicker(ctx, ethhelpers.PeriodicBlockNumberTickerOptions{
+				Client:     client,
+				Interval:   100 * time.Millisecond,
+				WindowSize: 10,
+			})
+			assert.NoError(t, err)
 			defer ticker.Stop()
 
 			test.fn(t, client, ticker)
@@ -694,7 +703,12 @@ func TestTickers_NewPeriodicBlockNumberTickerFromBlock_0(t *testing.T) {
 			client := ethtesting.NewClientWithMock()
 			client.Test(t)
 
-			ticker := ethhelpers.NewPeriodicBlockNumberTickerFromBlock(ctx, client, 100*time.Millisecond, 0)
+			ticker, err := ethhelpers.NewPeriodicBlockNumberTicker(ctx, ethhelpers.PeriodicBlockNumberTickerOptions{
+				Client:    client,
+				Interval:  100 * time.Millisecond,
+				FromBlock: new(uint64),
+			})
+			assert.NoError(t, err)
 			defer ticker.Stop()
 
 			test.fn(t, client, ticker)
@@ -737,7 +751,14 @@ func TestTickers_NewPeriodicBlockNumberTickerFromBlock_100000(t *testing.T) {
 			client := ethtesting.NewClientWithMock()
 			client.Test(t)
 
-			ticker := ethhelpers.NewPeriodicBlockNumberTickerFromBlock(ctx, client, 100*time.Millisecond, 100000)
+			fromBlock := uint64(100000)
+
+			ticker, err := ethhelpers.NewPeriodicBlockNumberTicker(ctx, ethhelpers.PeriodicBlockNumberTickerOptions{
+				Client:    client,
+				Interval:  100 * time.Millisecond,
+				FromBlock: &fromBlock,
+			})
+			assert.NoError(t, err)
 			defer ticker.Stop()
 
 			test.fn(t, client, ticker)
@@ -784,7 +805,15 @@ func TestTickers_NewPeriodicBlockNumberTickerFromBlockWithWindowSize_0_10(t *tes
 			client := ethtesting.NewClientWithMock()
 			client.Test(t)
 
-			ticker := ethhelpers.NewPeriodicBlockNumberTickerFromBlockWithWindowSize(ctx, client, 100*time.Millisecond, 0, 10)
+			fromBlock := uint64(0)
+
+			ticker, err := ethhelpers.NewPeriodicBlockNumberTicker(ctx, ethhelpers.PeriodicBlockNumberTickerOptions{
+				Client:     client,
+				Interval:   100 * time.Millisecond,
+				FromBlock:  &fromBlock,
+				WindowSize: 10,
+			})
+			assert.NoError(t, err)
 			defer ticker.Stop()
 
 			test.fn(t, client, ticker)
@@ -830,7 +859,15 @@ func TestTickers_NewPeriodicBlockNumberTickerFromBlockWithWindowSize_100000_10(t
 			client := ethtesting.NewClientWithMock()
 			client.Test(t)
 
-			ticker := ethhelpers.NewPeriodicBlockNumberTickerFromBlockWithWindowSize(ctx, client, 100*time.Millisecond, 100000, 10)
+			fromBlock := uint64(100000)
+
+			ticker, err := ethhelpers.NewPeriodicBlockNumberTicker(ctx, ethhelpers.PeriodicBlockNumberTickerOptions{
+				Client:     client,
+				Interval:   100 * time.Millisecond,
+				FromBlock:  &fromBlock,
+				WindowSize: 10,
+			})
+			assert.NoError(t, err)
 			defer ticker.Stop()
 
 			test.fn(t, client, ticker)
