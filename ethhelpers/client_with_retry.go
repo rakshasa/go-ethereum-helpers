@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"syscall"
 	"time"
 
@@ -37,7 +38,7 @@ func RetryIfTemporaryError(unknownError func(context.Context, error) error) func
 				return err
 			case errors.Is(err, context.DeadlineExceeded):
 				return err
-			case errors.Is(err, syscall.ECONNRESET):
+			case errors.Is(err, syscall.ECONNRESET) || os.IsTimeout(err):
 				// TODO: Use an temporary error handler.
 				time.Sleep(1 * time.Second)
 				continue
