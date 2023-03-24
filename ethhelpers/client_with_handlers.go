@@ -66,6 +66,7 @@ func (c *clientWithHandlers) BlockByHash(ctx context.Context, hash common.Hash) 
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -82,6 +83,7 @@ func (c *clientWithHandlers) BlockByNumber(ctx context.Context, number *big.Int)
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -98,6 +100,7 @@ func (c *clientWithHandlers) HeaderByHash(ctx context.Context, hash common.Hash)
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -114,6 +117,7 @@ func (c *clientWithHandlers) HeaderByNumber(ctx context.Context, number *big.Int
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -130,6 +134,7 @@ func (c *clientWithHandlers) TransactionCount(ctx context.Context, blockHash com
 		return 0, err
 	}
 
+	e = nil
 	return
 }
 
@@ -146,6 +151,7 @@ func (c *clientWithHandlers) TransactionInBlock(ctx context.Context, blockHash c
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -162,6 +168,7 @@ func (c *clientWithHandlers) SubscribeNewHead(ctx context.Context, ch chan<- *ty
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -178,6 +185,7 @@ func (c *clientWithHandlers) BalanceAt(ctx context.Context, account common.Addre
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -194,6 +202,7 @@ func (c *clientWithHandlers) StorageAt(ctx context.Context, account common.Addre
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -210,6 +219,7 @@ func (c *clientWithHandlers) CodeAt(ctx context.Context, account common.Address,
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -226,6 +236,7 @@ func (c *clientWithHandlers) NonceAt(ctx context.Context, account common.Address
 		return 0, err
 	}
 
+	e = nil
 	return
 }
 
@@ -242,6 +253,7 @@ func (c *clientWithHandlers) SyncProgress(ctx context.Context) (r *ethereum.Sync
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -258,6 +270,7 @@ func (c *clientWithHandlers) CallContract(ctx context.Context, call ethereum.Cal
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -274,6 +287,7 @@ func (c *clientWithHandlers) EstimateGas(ctx context.Context, call ethereum.Call
 		return 0, err
 	}
 
+	e = nil
 	return
 }
 
@@ -290,6 +304,7 @@ func (c *clientWithHandlers) SuggestGasPrice(ctx context.Context) (r *big.Int, e
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -306,6 +321,7 @@ func (c *clientWithHandlers) FilterLogs(ctx context.Context, q ethereum.FilterQu
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -322,6 +338,7 @@ func (c *clientWithHandlers) SubscribeFilterLogs(ctx context.Context, q ethereum
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -338,6 +355,7 @@ func (c *clientWithHandlers) PendingCallContract(ctx context.Context, call ether
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -356,6 +374,7 @@ func (c *clientWithHandlers) PendingBalanceAt(ctx context.Context, account commo
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -372,6 +391,7 @@ func (c *clientWithHandlers) PendingStorageAt(ctx context.Context, account commo
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -388,6 +408,7 @@ func (c *clientWithHandlers) PendingCodeAt(ctx context.Context, account common.A
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -404,6 +425,7 @@ func (c *clientWithHandlers) PendingNonceAt(ctx context.Context, account common.
 		return 0, err
 	}
 
+	e = nil
 	return
 }
 
@@ -420,6 +442,7 @@ func (c *clientWithHandlers) PendingTransactionCount(ctx context.Context) (r uin
 		return 0, err
 	}
 
+	e = nil
 	return
 }
 
@@ -436,6 +459,7 @@ func (c *clientWithHandlers) TransactionByHash(ctx context.Context, txHash commo
 		return nil, false, err
 	}
 
+	e = nil
 	return
 }
 
@@ -452,6 +476,7 @@ func (c *clientWithHandlers) TransactionReceipt(ctx context.Context, txHash comm
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -468,6 +493,7 @@ func (c *clientWithHandlers) SendTransaction(ctx context.Context, tx *types.Tran
 		return err
 	}
 
+	e = nil
 	return
 }
 
@@ -484,6 +510,7 @@ func (c *clientWithHandlers) BlockNumber(ctx context.Context) (r uint64, e error
 		return 0, err
 	}
 
+	e = nil
 	return
 }
 
@@ -500,6 +527,7 @@ func (c *clientWithHandlers) CallContractAtHash(ctx context.Context, msg ethereu
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -516,6 +544,7 @@ func (c *clientWithHandlers) ChainID(ctx context.Context) (r *big.Int, e error) 
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -546,6 +575,7 @@ func (c *clientWithHandlers) FeeHistory(ctx context.Context, blockCount uint64, 
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -562,6 +592,7 @@ func (c *clientWithHandlers) NetworkID(ctx context.Context) (r *big.Int, e error
 		return nil, err
 	}
 
+	e = nil
 	return
 }
 
@@ -578,6 +609,7 @@ func (c *clientWithHandlers) PeerCount(ctx context.Context) (r uint64, e error) 
 		return 0, err
 	}
 
+	e = nil
 	return
 }
 
@@ -594,5 +626,6 @@ func (c *clientWithHandlers) SuggestGasTipCap(ctx context.Context) (r *big.Int, 
 		return nil, err
 	}
 
+	e = nil
 	return
 }

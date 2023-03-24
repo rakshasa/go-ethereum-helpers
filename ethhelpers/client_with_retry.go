@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"syscall"
 	"time"
 
@@ -33,12 +34,24 @@ func RetryIfTemporaryError(unknownError func(context.Context, error) error) func
 			var newErr error
 			var rpcErr rpc.Error
 
+			isTemporary := func() bool {
+				switch {
+				case errors.Is(err, syscall.ECONNRESET):
+				case os.IsTimeout(err):
+				case strings.HasSuffix(err.Error(), ": i/o timeout"):
+				default:
+					return false
+				}
+
+				return true
+			}
+
 			switch {
 			case errors.Is(err, context.Canceled):
 				return err
 			case errors.Is(err, context.DeadlineExceeded):
 				return err
-			case errors.Is(err, syscall.ECONNRESET) || os.IsTimeout(err):
+			case isTemporary():
 				// TODO: Use an temporary error handler.
 				time.Sleep(1 * time.Second)
 				continue
